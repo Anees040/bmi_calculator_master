@@ -4,6 +4,7 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
@@ -83,6 +84,7 @@ class BmiHomePage extends StatefulWidget {
 
 class _BmiHomePageState extends State<BmiHomePage> {
   static const String _historyKey = 'bmi_history_v1';
+  static const String _gameKey = 'bmi_game_state_v1';
 
   double _heightCm = 170;
   double _weightKg = 70;
@@ -92,26 +94,19 @@ class _BmiHomePageState extends State<BmiHomePage> {
   WeightUnit _weightUnit = WeightUnit.kg;
   ActivityLevel _activityLevel = ActivityLevel.moderate;
 
-  final TextEditingController _heightPrimaryController = TextEditingController();
-  final TextEditingController _heightSecondaryController =
-      TextEditingController();
-  final TextEditingController _weightController = TextEditingController();
+  double _hydrationQuest = 0.3;
+  double _stepsQuest = 0.2;
+  int _xp = 0;
+  int _streak = 0;
+  String _lastCheckIn = '';
 
   List<BmiRecord> _history = <BmiRecord>[];
 
   @override
   void initState() {
     super.initState();
-    _syncControllers();
     _loadHistory();
-  }
-
-  @override
-  void dispose() {
-    _heightPrimaryController.dispose();
-    _heightSecondaryController.dispose();
-    _weightController.dispose();
-    super.dispose();
+    _loadGameState();
   }
 
   Future<void> _loadHistory() async {
@@ -134,6 +129,40 @@ class _BmiHomePageState extends State<BmiHomePage> {
     final prefs = await SharedPreferences.getInstance();
     final jsonList = _history.map((e) => e.toJson()).toList();
     await prefs.setString(_historyKey, jsonEncode(jsonList));
+  }
+
+  Future<void> _loadGameState() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_gameKey);
+    if (raw == null || raw.isEmpty) {
+      return;
+    }
+    final data = jsonDecode(raw) as Map<String, dynamic>;
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _xp = (data['xp'] as num?)?.toInt() ?? 0;
+      _streak = (data['streak'] as num?)?.toInt() ?? 0;
+      _hydrationQuest = ((data['hydrationQuest'] as num?)?.toDouble() ?? 0.3)
+          .clamp(0, 1);
+      _stepsQuest = ((data['stepsQuest'] as num?)?.toDouble() ?? 0.2).clamp(0, 1);
+      _lastCheckIn = data['lastCheckIn'] as String? ?? '';
+    });
+  }
+
+  Future<void> _saveGameState() async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(
+      _gameKey,
+      jsonEncode({
+        'xp': _xp,
+        'streak': _streak,
+        'hydrationQuest': _hydrationQuest,
+        'stepsQuest': _stepsQuest,
+        'lastCheckIn': _lastCheckIn,
+      }),
+    );
   }
 
   double get _bmi => _weightKg / pow(_heightCm / 100, 2);
@@ -175,11 +204,39 @@ class _BmiHomePageState extends State<BmiHomePage> {
 
   double get _maintenanceCalories => _bmr * _activityFactor;
 
+  int get _level => (_xp ~/ 100) + 1;
+
+  int get _healthScore {
+    final bmiPenalty = ((22 - _bmi).abs() * 7).round();
+    final bonus = min(15, _xp ~/ 20);
+    return (100 - bmiPenalty + bonus).clamp(0, 100);
+  }
+
   String get _heightShareText {
     final totalInches = (_heightCm / 2.54);
     final ft = totalInches ~/ 12;
     final inch = (totalInches - (ft * 12)).round();
     return '${_heightCm.toStringAsFixed(1)} cm | ${_heightM.toStringAsFixed(2)} m | ${ft}ft ${inch}in';
+  }
+
+  String get _heightDisplay {
+    if (_heightUnit == HeightUnit.cm) {
+      return '${_heightCm.toStringAsFixed(1)} cm';
+    }
+    if (_heightUnit == HeightUnit.meter) {
+      return '${_heightM.toStringAsFixed(2)} m';
+    }
+    final totalInches = _heightCm / 2.54;
+    final ft = totalInches ~/ 12;
+    final inch = totalInches - ft * 12;
+    return '$ft ft ${inch.toStringAsFixed(1)} in';
+  }
+
+  String get _weightDisplay {
+    if (_weightUnit == WeightUnit.kg) {
+      return '${_weightKg.toStringAsFixed(1)} kg';
+    }
+    return '${_weightLb.toStringAsFixed(1)} lb';
   }
 
   String get _status {
@@ -216,77 +273,130 @@ class _BmiHomePageState extends State<BmiHomePage> {
     }
   }
 
-  void _syncControllers() {
-    if (_heightUnit == HeightUnit.cm) {
-      _heightPrimaryController.text = _heightCm.toStringAsFixed(1);
-      _heightSecondaryController.text = '';
-    } else if (_heightUnit == HeightUnit.meter) {
-      _heightPrimaryController.text = _heightM.toStringAsFixed(2);
-      _heightSecondaryController.text = '';
-    } else {
-      final totalInches = _heightCm / 2.54;
-      final ft = totalInches ~/ 12;
-      final inch = totalInches - (ft * 12);
-      _heightPrimaryController.text = '$ft';
-      _heightSecondaryController.text = inch.toStringAsFixed(1);
-    }
-
-    if (_weightUnit == WeightUnit.kg) {
-      _weightController.text = _weightKg.toStringAsFixed(1);
-    } else {
-      _weightController.text = _weightLb.toStringAsFixed(1);
-    }
-  }
-
   void _setHeightUnit(HeightUnit unit) {
     setState(() {
       _heightUnit = unit;
-      _syncControllers();
     });
   }
 
   void _setWeightUnit(WeightUnit unit) {
     setState(() {
       _weightUnit = unit;
-      _syncControllers();
     });
   }
 
-  void _applyHeightInput() {
-    final primary = double.tryParse(_heightPrimaryController.text.trim());
-    final secondary =
-        double.tryParse(_heightSecondaryController.text.trim()) ?? 0;
-
-    if (primary == null || primary <= 0) {
-      return;
-    }
-
-    double cm;
-    if (_heightUnit == HeightUnit.cm) {
-      cm = primary;
-    } else if (_heightUnit == HeightUnit.meter) {
-      cm = primary * 100;
-    } else {
-      cm = ((primary * 12) + secondary) * 2.54;
-    }
-
+  void _adjustHeight(bool increase) {
+    final delta = _heightUnit == HeightUnit.ftIn ? 1.27 : 0.5;
     setState(() {
-      _heightCm = cm.clamp(100, 230);
-      _syncControllers();
+      _heightCm = (_heightCm + (increase ? delta : -delta)).clamp(100, 230);
     });
   }
 
-  void _applyWeightInput() {
-    final parsed = double.tryParse(_weightController.text.trim());
-    if (parsed == null || parsed <= 0) {
-      return;
-    }
-
-    final kg = _weightUnit == WeightUnit.kg ? parsed : parsed / 2.2046226218;
+  void _adjustWeight(bool increase) {
+    final delta = _weightUnit == WeightUnit.kg ? 0.5 : 0.226796;
     setState(() {
-      _weightKg = kg.clamp(30, 250);
-      _syncControllers();
+      _weightKg = (_weightKg + (increase ? delta : -delta)).clamp(30, 250);
     });
+  }
+
+  Future<void> _openHeightDial() async {
+    double local = _heightCm;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModal) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Fine tune height',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  Text('${local.toStringAsFixed(1)} cm'),
+                  Slider(
+                    min: 100,
+                    max: 230,
+                    divisions: 260,
+                    value: local,
+                    onChanged: (value) => setModal(() => local = value),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          setState(() => _heightCm = local);
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Future<void> _openWeightDial() async {
+    double local = _weightKg;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setModal) {
+            return Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Fine tune weight',
+                      style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  Text('${local.toStringAsFixed(1)} kg'),
+                  Slider(
+                    min: 30,
+                    max: 250,
+                    divisions: 440,
+                    value: local,
+                    onChanged: (value) => setModal(() => local = value),
+                  ),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      TextButton(
+                        onPressed: () => Navigator.pop(context),
+                        child: const Text('Cancel'),
+                      ),
+                      FilledButton(
+                        onPressed: () {
+                          setState(() => _weightKg = local);
+                          Navigator.pop(context);
+                        },
+                        child: const Text('Apply'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   void _saveCurrentRecord() {
@@ -301,10 +411,61 @@ class _BmiHomePageState extends State<BmiHomePage> {
     );
     setState(() {
       _history = <BmiRecord>[record, ..._history].take(50).toList();
+      _xp += 10;
     });
     _saveHistory();
+    _saveGameState();
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Result saved in history')),
+      const SnackBar(content: Text('Result saved. +10 XP earned')),
+    );
+  }
+
+  void _completeDailyCheckIn() {
+    final today = DateTime.now();
+    final marker =
+        '${today.year}-${today.month.toString().padLeft(2, '0')}-${today.day.toString().padLeft(2, '0')}';
+    if (_lastCheckIn == marker) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('You already checked in today.')),
+      );
+      return;
+    }
+    setState(() {
+      _lastCheckIn = marker;
+      _streak += 1;
+      _xp += 15;
+    });
+    _saveGameState();
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Daily check-in complete. +15 XP')),
+    );
+  }
+
+  void _claimQuest(String quest) {
+    if (quest == 'hydration' && _hydrationQuest >= 1) {
+      setState(() {
+        _xp += 20;
+        _hydrationQuest = 0;
+      });
+      _saveGameState();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Hydration quest claimed. +20 XP')),
+      );
+      return;
+    }
+    if (quest == 'steps' && _stepsQuest >= 1) {
+      setState(() {
+        _xp += 20;
+        _stepsQuest = 0;
+      });
+      _saveGameState();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Steps quest claimed. +20 XP')),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Quest not complete yet.')),
     );
   }
 
@@ -345,7 +506,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
             children: [
               Row(
                 children: [
-                  const AppLogo(size: 52),
+                  const AppLogo(size: 56),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -355,75 +516,69 @@ class _BmiHomePageState extends State<BmiHomePage> {
                             style: theme.textTheme.titleLarge?.copyWith(
                               fontWeight: FontWeight.w700,
                             )),
-                        Text('Fast, precise, and easy to share',
+                        Text('Interactive health tracking with game rewards',
                             style: theme.textTheme.bodyMedium),
                       ],
                     ),
+                  ),
+                  SvgPicture.asset(
+                    'images/person.svg',
+                    width: 46,
+                    height: 46,
                   ),
                 ],
               ),
               const SizedBox(height: 16),
               _sectionCard(
                 context,
-                title: 'Exact Inputs',
-                icon: Icons.tune,
+                title: 'Interactive Controls',
+                icon: Icons.sports_esports,
                 child: Column(
                   children: [
                     _buildGenderRow(),
                     const SizedBox(height: 12),
-                    _buildHeightControls(heightSliderValue),
+                    _buildHeightControls(heightSliderValue, theme),
                     const SizedBox(height: 12),
-                    _buildWeightControls(weightSliderValue),
+                    _buildWeightControls(weightSliderValue, theme),
                     const SizedBox(height: 12),
-                    _buildAgeAndActivity(),
+                    _buildAgeAndActivity(theme),
                   ],
                 ),
               ),
               const SizedBox(height: 16),
-              Card(
-                color: statusColor.withValues(alpha: 0.1),
-                elevation: 0,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('Your BMI', style: theme.textTheme.titleMedium),
-                      const SizedBox(height: 4),
-                      Text(
-                        _bmi.toStringAsFixed(1),
-                        style: theme.textTheme.displaySmall?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
-                      ),
-                      Text(
-                        _status,
-                        style: theme.textTheme.headlineSmall?.copyWith(
-                          color: statusColor,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(_advice),
-                      const SizedBox(height: 10),
-                      Wrap(
-                        spacing: 8,
-                        runSpacing: 8,
-                        children: [
-                          FilledButton.icon(
-                            onPressed: _saveCurrentRecord,
-                            icon: const Icon(Icons.bookmark_add_outlined),
-                            label: const Text('Save Result'),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: _copySummary,
-                            icon: const Icon(Icons.copy_all_outlined),
-                            label: const Text('Copy Summary'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+              _buildBmiArena(theme, statusColor),
+              const SizedBox(height: 16),
+              _sectionCard(
+                context,
+                title: 'Daily Quests',
+                icon: Icons.flag_circle,
+                child: Column(
+                  children: [
+                    _questTile(
+                      title: 'Hydration Quest',
+                      subtitle:
+                          'Complete your ${_waterLiters.toStringAsFixed(1)}L target',
+                      progress: _hydrationQuest,
+                      svgAsset: 'images/weight_arrow.svg',
+                      onChanged: (v) {
+                        setState(() => _hydrationQuest = v);
+                        _saveGameState();
+                      },
+                      onClaim: () => _claimQuest('hydration'),
+                    ),
+                    const SizedBox(height: 10),
+                    _questTile(
+                      title: 'Move Quest',
+                      subtitle: 'Hit your step goal and claim XP',
+                      progress: _stepsQuest,
+                      svgAsset: 'images/pacman.svg',
+                      onChanged: (v) {
+                        setState(() => _stepsQuest = v);
+                        _saveGameState();
+                      },
+                      onClaim: () => _claimQuest('steps'),
+                    ),
+                  ],
                 ),
               ),
               const SizedBox(height: 16),
@@ -447,6 +602,8 @@ class _BmiHomePageState extends State<BmiHomePage> {
                         'Maintenance calories',
                         '${_maintenanceCalories.toStringAsFixed(0)} kcal/day',
                         Icons.bolt_outlined),
+                    _statTile('Game level', 'Level $_level | XP $_xp',
+                        Icons.workspace_premium_outlined),
                   ],
                 ),
               ),
@@ -519,9 +676,9 @@ class _BmiHomePageState extends State<BmiHomePage> {
   Widget _buildGenderRow() {
     return SegmentedButton<Gender>(
       segments: const [
-        ButtonSegment(value: Gender.male, label: Text('Male')),
-        ButtonSegment(value: Gender.female, label: Text('Female')),
-        ButtonSegment(value: Gender.other, label: Text('Other')),
+        ButtonSegment(value: Gender.male, icon: Icon(Icons.male), label: Text('Male')),
+        ButtonSegment(value: Gender.female, icon: Icon(Icons.female), label: Text('Female')),
+        ButtonSegment(value: Gender.other, icon: Icon(Icons.transgender), label: Text('Other')),
       ],
       selected: <Gender>{_gender},
       onSelectionChanged: (Set<Gender> value) {
@@ -530,11 +687,29 @@ class _BmiHomePageState extends State<BmiHomePage> {
     );
   }
 
-  Widget _buildHeightControls(double sliderValue) {
-    return Column(
+  Widget _buildHeightControls(double sliderValue, ThemeData theme) {
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Height'),
+        Row(
+          children: [
+            SvgPicture.asset('images/user.svg', width: 24, height: 24),
+            const SizedBox(width: 8),
+            const Text('Height'),
+            const Spacer(),
+            TextButton(
+              onPressed: _openHeightDial,
+              child: const Text('Dial'),
+            ),
+          ],
+        ),
         const SizedBox(height: 6),
         SegmentedButton<HeightUnit>(
           segments: const [
@@ -549,39 +724,20 @@ class _BmiHomePageState extends State<BmiHomePage> {
         const SizedBox(height: 8),
         Row(
           children: [
+            IconButton(
+              onPressed: () => _adjustHeight(false),
+              icon: const Icon(Icons.remove_circle_outline),
+            ),
             Expanded(
-              child: TextField(
-                controller: _heightPrimaryController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: _heightUnit == HeightUnit.ftIn
-                      ? 'Feet'
-                      : (_heightUnit == HeightUnit.cm ? 'Height (cm)' : 'Height (m)'),
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
+              child: Center(
+                child: Text(_heightDisplay,
+                    style: theme.textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w700)),
               ),
             ),
-            if (_heightUnit == HeightUnit.ftIn) ...[
-              const SizedBox(width: 8),
-              Expanded(
-                child: TextField(
-                  controller: _heightSecondaryController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  decoration: const InputDecoration(
-                    labelText: 'Inches',
-                    border: OutlineInputBorder(),
-                    isDense: true,
-                  ),
-                ),
-              ),
-            ],
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              onPressed: _applyHeightInput,
-              icon: const Icon(Icons.check),
+            IconButton(
+              onPressed: () => _adjustHeight(true),
+              icon: const Icon(Icons.add_circle_outline),
             ),
           ],
         ),
@@ -594,23 +750,52 @@ class _BmiHomePageState extends State<BmiHomePage> {
           onChanged: (double value) {
             setState(() {
               _heightCm = value;
-              _syncControllers();
             });
           },
         ),
+        Wrap(
+          spacing: 8,
+          children: [
+            ActionChip(
+                label: const Text('160 cm'),
+                onPressed: () => setState(() => _heightCm = 160)),
+            ActionChip(
+                label: const Text('170 cm'),
+                onPressed: () => setState(() => _heightCm = 170)),
+            ActionChip(
+                label: const Text('180 cm'),
+                onPressed: () => setState(() => _heightCm = 180)),
+          ],
+        ),
       ],
-    );
+    ));
   }
 
-  Widget _buildWeightControls(double sliderValue) {
-    final labelWeight = _weightUnit == WeightUnit.kg
-        ? '${_weightKg.toStringAsFixed(1)} kg'
-        : '${_weightLb.toStringAsFixed(1)} lb';
+  Widget _buildWeightControls(double sliderValue, ThemeData theme) {
+    final labelWeight = _weightDisplay;
 
-    return Column(
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 250),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Weight'),
+        Row(
+          children: [
+            SvgPicture.asset('images/weight_arrow.svg', width: 22, height: 22),
+            const SizedBox(width: 8),
+            const Text('Weight'),
+            const Spacer(),
+            TextButton(
+              onPressed: _openWeightDial,
+              child: const Text('Dial'),
+            ),
+          ],
+        ),
         const SizedBox(height: 6),
         SegmentedButton<WeightUnit>(
           segments: const [
@@ -624,69 +809,54 @@ class _BmiHomePageState extends State<BmiHomePage> {
         const SizedBox(height: 8),
         Row(
           children: [
-            Expanded(
-              child: TextField(
-                controller: _weightController,
-                keyboardType:
-                    const TextInputType.numberWithOptions(decimal: true),
-                decoration: InputDecoration(
-                  labelText: _weightUnit == WeightUnit.kg
-                      ? 'Weight (kg)'
-                      : 'Weight (lb)',
-                  border: const OutlineInputBorder(),
-                  isDense: true,
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            IconButton.filledTonal(
-              onPressed: _applyWeightInput,
-              icon: const Icon(Icons.check),
-            ),
-          ],
-        ),
-        Row(
-          children: [
             IconButton(
-              onPressed: () {
-                setState(() {
-                  _weightKg = max(30, _weightKg - 0.5);
-                  _syncControllers();
-                });
-              },
+              onPressed: () => _adjustWeight(false),
               icon: const Icon(Icons.remove_circle_outline),
             ),
             Expanded(
-              child: Slider(
-                min: 30,
-                max: 250,
-                value: sliderValue,
-                divisions: 440,
-                label: labelWeight,
-                onChanged: (double value) {
-                  setState(() {
-                    _weightKg = value;
-                    _syncControllers();
-                  });
-                },
+              child: Center(
+                child: Text(
+                  _weightDisplay,
+                  style:
+                      theme.textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
               ),
             ),
             IconButton(
-              onPressed: () {
-                setState(() {
-                  _weightKg = min(250, _weightKg + 0.5);
-                  _syncControllers();
-                });
-              },
+              onPressed: () => _adjustWeight(true),
               icon: const Icon(Icons.add_circle_outline),
             ),
           ],
         ),
+        Slider(
+          min: 30,
+          max: 250,
+          value: sliderValue,
+          divisions: 440,
+          label: labelWeight,
+          onChanged: (double value) {
+            setState(() => _weightKg = value);
+          },
+        ),
+        Wrap(
+          spacing: 8,
+          children: [
+            ActionChip(
+                label: const Text('60 kg'),
+                onPressed: () => setState(() => _weightKg = 60)),
+            ActionChip(
+                label: const Text('70 kg'),
+                onPressed: () => setState(() => _weightKg = 70)),
+            ActionChip(
+                label: const Text('80 kg'),
+                onPressed: () => setState(() => _weightKg = 80)),
+          ],
+        ),
       ],
-    );
+    ));
   }
 
-  Widget _buildAgeAndActivity() {
+  Widget _buildAgeAndActivity(ThemeData theme) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -738,7 +908,149 @@ class _BmiHomePageState extends State<BmiHomePage> {
             setState(() => _activityLevel = value);
           },
         ),
+        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(10),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.5),
+          ),
+          child: Row(
+            children: [
+              SvgPicture.asset('images/pacman.svg', width: 22, height: 22),
+              const SizedBox(width: 8),
+              Text('Streak: $_streak days  |  XP: $_xp  |  Level: $_level'),
+              const Spacer(),
+              FilledButton.tonal(
+                onPressed: _completeDailyCheckIn,
+                child: const Text('Check-in'),
+              ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+
+  Widget _buildBmiArena(ThemeData theme, Color statusColor) {
+    return Card(
+      color: statusColor.withValues(alpha: 0.1),
+      elevation: 0,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('BMI Arena', style: theme.textTheme.titleMedium),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: (_healthScore / 100)),
+                  duration: const Duration(milliseconds: 500),
+                  builder: (context, value, _) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 88,
+                          height: 88,
+                          child: CircularProgressIndicator(
+                            value: value,
+                            strokeWidth: 9,
+                            backgroundColor: Colors.white,
+                          ),
+                        ),
+                        Text('$_healthScore',
+                            style: theme.textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w700)),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('BMI ${_bmi.toStringAsFixed(1)}  •  $_status',
+                          style: theme.textTheme.titleLarge?.copyWith(
+                            color: statusColor,
+                            fontWeight: FontWeight.w700,
+                          )),
+                      const SizedBox(height: 4),
+                      Text(_advice),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _saveCurrentRecord,
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  label: const Text('Save Result'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _copySummary,
+                  icon: const Icon(Icons.copy_all_outlined),
+                  label: const Text('Copy Summary'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _questTile({
+    required String title,
+    required String subtitle,
+    required double progress,
+    required String svgAsset,
+    required ValueChanged<double> onChanged,
+    required VoidCallback onClaim,
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest
+            .withValues(alpha: 0.4),
+      ),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              SvgPicture.asset(svgAsset, width: 24, height: 24),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title,
+                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(subtitle),
+                  ],
+                ),
+              ),
+              FilledButton.tonal(
+                onPressed: onClaim,
+                child: const Text('Claim'),
+              ),
+            ],
+          ),
+          Slider(
+            value: progress,
+            onChanged: onChanged,
+          ),
+        ],
+      ),
     );
   }
 
