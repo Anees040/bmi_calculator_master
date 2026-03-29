@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class LocalStore {
   static const String _historyKey = 'bmi_history_v1';
   static const String _gameKey = 'bmi_game_state_v1';
+  static const String _onboardingSeenKey = 'bmi_onboarding_seen_v1';
 
   Future<List<BmiRecord>> loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
@@ -40,5 +41,15 @@ class LocalStore {
   Future<void> saveGameState(GameState game) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_gameKey, jsonEncode(game.toJson()));
+  }
+
+  Future<bool> loadOnboardingSeen() async {
+    final prefs = await SharedPreferences.getInstance();
+    return prefs.getBool(_onboardingSeenKey) ?? false;
+  }
+
+  Future<void> saveOnboardingSeen(bool seen) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_onboardingSeenKey, seen);
   }
 }
