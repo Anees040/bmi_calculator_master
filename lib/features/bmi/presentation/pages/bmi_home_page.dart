@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:bmi_calculator/features/bmi/data/local_store.dart';
 import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
@@ -27,6 +28,9 @@ class _BmiHomePageState extends State<BmiHomePage>
   final PageController _pageController = PageController();
   late final AnimationController _bgMotionController;
   int _selectedTab = 0;
+  bool _showOnboarding = false;
+  int _onboardingStep = 0;
+  Timer? _onboardingTimer;
 
   double _heightCm = 170;
   double _weightKg = 70;
@@ -45,13 +49,13 @@ class _BmiHomePageState extends State<BmiHomePage>
   List<BmiRecord> _history = <BmiRecord>[];
 
   HealthMetrics get _metrics => HealthMetrics(
-        heightCm: _heightCm,
-        weightKg: _weightKg,
-        age: _age,
-        gender: _gender,
-        activityLevel: _activityLevel,
-        xp: _xp,
-      );
+    heightCm: _heightCm,
+    weightKg: _weightKg,
+    age: _age,
+    gender: _gender,
+    activityLevel: _activityLevel,
+    xp: _xp,
+  );
 
   @override
   void initState() {
@@ -67,6 +71,7 @@ class _BmiHomePageState extends State<BmiHomePage>
   void dispose() {
     _pageController.dispose();
     _bgMotionController.dispose();
+    _onboardingTimer?.cancel();
     super.dispose();
   }
 
@@ -85,6 +90,7 @@ class _BmiHomePageState extends State<BmiHomePage>
   Future<void> _loadState() async {
     final history = await _store.loadHistory();
     final game = await _store.loadGameState();
+    final onboardingSeen = await _store.loadOnboardingSeen();
     if (!mounted) {
       return;
     }
@@ -95,8 +101,55 @@ class _BmiHomePageState extends State<BmiHomePage>
       _hydrationQuest = game.hydrationQuest;
       _stepsQuest = game.stepsQuest;
       _lastCheckIn = game.lastCheckIn;
+      _showOnboarding = !onboardingSeen;
+    });
+    if (!onboardingSeen) {
+      _startOnboardingTips();
+    }
+  }
+
+  void _startOnboardingTips() {
+    _onboardingTimer?.cancel();
+    _onboardingTimer = Timer.periodic(const Duration(seconds: 3), (timer) {
+      if (!mounted || !_showOnboarding) {
+        timer.cancel();
+        return;
+      }
+      setState(() {
+        _onboardingStep = (_onboardingStep + 1) % _onboardingTips.length;
+      });
     });
   }
+
+  Future<void> _dismissOnboarding() async {
+    _onboardingTimer?.cancel();
+    await _store.saveOnboardingSeen(true);
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _showOnboarding = false;
+    });
+  }
+
+  List<_OnboardingTip> get _onboardingTips => const [
+    _OnboardingTip(
+      title: 'Start in Dashboard',
+      body: 'See your live BMI score and save snapshots as you improve.',
+      icon: Icons.speed,
+    ),
+    _OnboardingTip(
+      title: 'Tune in Tracker',
+      body:
+          'Adjust units, weight, height, age, and activity with quick controls.',
+      icon: Icons.tune,
+    ),
+    _OnboardingTip(
+      title: 'Review Insights',
+      body: 'Read chart cards for targets, hydration, and calorie strategy.',
+      icon: Icons.insights,
+    ),
+  ];
 
   Future<void> _persistGame() {
     return _store.saveGameState(
@@ -156,22 +209,20 @@ class _BmiHomePageState extends State<BmiHomePage>
   BoxDecoration _softCardDecoration() {
     return BoxDecoration(
       borderRadius: BorderRadius.circular(18),
-      color: Theme.of(context)
-          .colorScheme
-          .surfaceContainerHighest
-          .withValues(alpha: _isDark ? 0.30 : 0.45),
+      color: Theme.of(context).colorScheme.surfaceContainerHighest.withValues(
+        alpha: _isDark ? 0.30 : 0.45,
+      ),
       border: Border.all(
-        color: Theme.of(context).colorScheme.primary.withValues(
-              alpha: _isDark ? 0.16 : 0.08,
-            ),
+        color: Theme.of(
+          context,
+        ).colorScheme.primary.withValues(alpha: _isDark ? 0.16 : 0.08),
       ),
       boxShadow: _isDark
           ? [
               BoxShadow(
-                color: Theme.of(context)
-                    .colorScheme
-                    .primary
-                    .withValues(alpha: 0.12),
+                color: Theme.of(
+                  context,
+                ).colorScheme.primary.withValues(alpha: 0.12),
                 blurRadius: 18,
                 offset: const Offset(0, 8),
               ),
@@ -215,9 +266,11 @@ class _BmiHomePageState extends State<BmiHomePage>
                     style: Theme.of(context).textTheme.titleLarge,
                   ),
                   const SizedBox(height: 8),
-                  Text(forHeight
-                      ? '${local.toStringAsFixed(1)} cm'
-                      : '${local.toStringAsFixed(1)} kg'),
+                  Text(
+                    forHeight
+                        ? '${local.toStringAsFixed(1)} cm'
+                        : '${local.toStringAsFixed(1)} kg',
+                  ),
                   Slider(
                     min: forHeight ? 100 : 30,
                     max: forHeight ? 230 : 250,
@@ -257,7 +310,8 @@ class _BmiHomePageState extends State<BmiHomePage>
   }
 
   void _copySummary() {
-    final text = 'BMI ${_metrics.bmi.toStringAsFixed(1)} (${_metrics.status})\n'
+    final text =
+        'BMI ${_metrics.bmi.toStringAsFixed(1)} (${_metrics.status})\n'
         'Height: ${_metrics.heightShareText}\n'
         'Weight: ${_weightKg.toStringAsFixed(1)} kg (${_metrics.weightLb.toStringAsFixed(1)} lb)\n'
         'Ideal range: ${_metrics.idealWeightMinKg.toStringAsFixed(1)} - ${_metrics.idealWeightMaxKg.toStringAsFixed(1)} kg\n'
@@ -286,9 +340,9 @@ class _BmiHomePageState extends State<BmiHomePage>
     });
     _persistHistory();
     _persistGame();
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Record saved. +10 XP')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Record saved. +10 XP')));
   }
 
   void _dailyCheckIn() {
@@ -334,8 +388,15 @@ class _BmiHomePageState extends State<BmiHomePage>
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final isDark = _isDark;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final isCompactNav = screenWidth < 390;
+    final contentBottomInset =
+        108.0 +
+        MediaQuery.paddingOf(context).bottom +
+        (_showOnboarding ? 150 : 0);
 
     return Scaffold(
+      extendBody: false,
       body: Stack(
         children: [
           AnimatedBuilder(
@@ -393,98 +454,176 @@ class _BmiHomePageState extends State<BmiHomePage>
             },
           ),
           SafeArea(
+            bottom: false,
             child: Column(
               children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
-                child: Row(
-                  children: [
-                    const AppLogo(size: 40),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'BMI Smart Companion',
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleLarge
-                                ?.copyWith(fontWeight: FontWeight.w800),
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          Text(
-                            'Modern health dashboard',
-                            style: Theme.of(context).textTheme.bodySmall,
-                          ),
-                        ],
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                  child: Row(
+                    children: [
+                      const AppLogo(size: 40),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              'BMI Smart Companion',
+                              style: Theme.of(context).textTheme.titleLarge
+                                  ?.copyWith(fontWeight: FontWeight.w800),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Modern health dashboard',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                    IconButton(
-                      onPressed: () {
-                        _tapFeedback();
-                        widget.onToggleTheme();
-                      },
-                      icon: Icon(
-                        widget.mode == ThemeMode.dark
-                            ? Icons.light_mode
-                            : Icons.dark_mode,
+                      IconButton(
+                        onPressed: () {
+                          _tapFeedback();
+                          widget.onToggleTheme();
+                        },
+                        icon: Icon(
+                          widget.mode == ThemeMode.dark
+                              ? Icons.light_mode
+                              : Icons.dark_mode,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              Expanded(
-                child: PageView(
-                  controller: _pageController,
-                  onPageChanged: (index) {
-                    if (_selectedTab != index) {
-                      setState(() => _selectedTab = index);
-                    }
-                  },
-                  children: [
-                    _dashboardTab(scheme),
-                    _trackerTab(),
-                    _insightsTab(),
-                  ],
+                Expanded(
+                  child: PageView(
+                    controller: _pageController,
+                    onPageChanged: (index) {
+                      if (_selectedTab != index) {
+                        setState(() => _selectedTab = index);
+                      }
+                    },
+                    children: [
+                      _dashboardTab(scheme),
+                      _trackerTab(contentBottomInset),
+                      _insightsTab(contentBottomInset),
+                    ],
+                  ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
-                child: NavigationBar(
-                  selectedIndex: _selectedTab,
-                  onDestinationSelected: (index) {
-                    _tapFeedback();
-                    setState(() => _selectedTab = index);
-                    _pageController.animateToPage(
-                      index,
-                      duration: const Duration(milliseconds: 380),
-                      curve: Curves.easeOutCubic,
-                    );
-                  },
-                  destinations: const [
-                    NavigationDestination(
-                      icon: Icon(Icons.dashboard_outlined),
-                      selectedIcon: Icon(Icons.dashboard),
-                      label: 'Dashboard',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.tune_outlined),
-                      selectedIcon: Icon(Icons.tune),
-                      label: 'Tracker',
-                    ),
-                    NavigationDestination(
-                      icon: Icon(Icons.insights_outlined),
-                      selectedIcon: Icon(Icons.insights),
-                      label: 'Insights',
-                    ),
-                  ],
-                ),
-              ),
               ],
             ),
           ),
         ],
+      ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: BoxDecoration(
+          color: Theme.of(context).scaffoldBackgroundColor,
+        ),
+        child: SafeArea(
+          top: false,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_showOnboarding)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                  child: _onboardingBanner(),
+                ),
+              _bottomNavBar(isCompact: isCompactNav),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _bottomNavBar({required bool isCompact}) {
+    final navBg = _isDark ? const Color(0xFF121E32) : Colors.white;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOutCubic,
+      decoration: BoxDecoration(
+        color: navBg,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        border: Border.all(
+          color: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: _isDark ? 0.30 : 0.10),
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: _isDark ? 0.18 : 0.08),
+            blurRadius: 18,
+            offset: const Offset(0, -4),
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        child: NavigationBar(
+          height: isCompact ? 64 : 70,
+          backgroundColor: navBg,
+          indicatorColor: Colors.transparent,
+          labelBehavior: isCompact
+              ? NavigationDestinationLabelBehavior.onlyShowSelected
+              : NavigationDestinationLabelBehavior.alwaysShow,
+          selectedIndex: _selectedTab,
+          onDestinationSelected: (index) {
+            _tapFeedback();
+            setState(() => _selectedTab = index);
+            _pageController.animateToPage(
+              index,
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic,
+            );
+          },
+          destinations: [
+            NavigationDestination(
+              icon: _tabIcon(
+                icon: Icons.dashboard_outlined,
+                color: const Color(0xFF2B7FFF),
+                selected: _selectedTab == 0,
+                compact: isCompact,
+              ),
+              selectedIcon: _tabIcon(
+                icon: Icons.dashboard,
+                color: const Color(0xFF2B7FFF),
+                selected: true,
+                compact: isCompact,
+              ),
+              label: 'Dashboard',
+            ),
+            NavigationDestination(
+              icon: _tabIcon(
+                icon: Icons.tune_outlined,
+                color: const Color(0xFF1CBA73),
+                selected: _selectedTab == 1,
+                compact: isCompact,
+              ),
+              selectedIcon: _tabIcon(
+                icon: Icons.tune,
+                color: const Color(0xFF1CBA73),
+                selected: true,
+                compact: isCompact,
+              ),
+              label: 'Tracker',
+            ),
+            NavigationDestination(
+              icon: _tabIcon(
+                icon: Icons.insights_outlined,
+                color: const Color(0xFFF08A29),
+                selected: _selectedTab == 2,
+                compact: isCompact,
+              ),
+              selectedIcon: _tabIcon(
+                icon: Icons.insights,
+                color: const Color(0xFFF08A29),
+                selected: true,
+                compact: isCompact,
+              ),
+              label: 'Insights',
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -492,32 +631,94 @@ class _BmiHomePageState extends State<BmiHomePage>
   Widget _dashboardTab(ColorScheme scheme) {
     final statusColor = _statusColor(scheme);
     return ListView(
-      padding: const EdgeInsets.all(14),
+      padding: EdgeInsets.fromLTRB(
+        14,
+        14,
+        14,
+        14 +
+            108 +
+            MediaQuery.paddingOf(context).bottom +
+            (_showOnboarding ? 150 : 0),
+      ),
       children: [
         _revealCard(0, _heroArena(statusColor)),
         const SizedBox(height: 14),
-        _revealCard(1, _questDeck()),
-      ],
-    );
-  }
-
-  Widget _trackerTab() {
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        _revealCard(0, _measurementDeck()),
-      ],
-    );
-  }
-
-  Widget _insightsTab() {
-    return ListView(
-      padding: const EdgeInsets.all(14),
-      children: [
-        _revealCard(0, _insightsDeck()),
+        _revealCard(1, _historyDeck(compact: true)),
         const SizedBox(height: 14),
-        _revealCard(1, _historyDeck()),
+        _revealCard(2, _questDeck()),
       ],
+    );
+  }
+
+  Widget _trackerTab(double contentBottomInset) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + contentBottomInset),
+      children: [
+        _revealCard(0, _trackerHeroCard()),
+        const SizedBox(height: 14),
+        _revealCard(1, _measurementDeck()),
+      ],
+    );
+  }
+
+  Widget _insightsTab(double contentBottomInset) {
+    return ListView(
+      padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + contentBottomInset),
+      children: [_revealCard(0, _insightsDeck())],
+    );
+  }
+
+  Widget _trackerHeroCard() {
+    return _InteractiveCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionHeader('Tracker Setup', Icons.tune_rounded),
+            const SizedBox(height: 8),
+            Text(
+              'Three quick steps: set profile, adjust body values, then pick activity.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _stepChip('1. Profile', Icons.person_outline_rounded),
+                _stepChip('2. Height & Weight', Icons.straighten_rounded),
+                _stepChip('3. Daily Activity', Icons.directions_run_rounded),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _stepChip(String label, IconData icon) {
+    final scheme = Theme.of(context).colorScheme;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: scheme.primary.withValues(alpha: _isDark ? 0.22 : 0.10),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: scheme.primary.withValues(alpha: 0.22)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: scheme.primary),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: Theme.of(
+              context,
+            ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+        ],
+      ),
     );
   }
 
@@ -568,9 +769,7 @@ class _BmiHomePageState extends State<BmiHomePage>
                     ),
                     Text(
                       '${_metrics.healthScore}',
-                      style: Theme.of(context)
-                          .textTheme
-                          .headlineSmall
+                      style: Theme.of(context).textTheme.headlineSmall
                           ?.copyWith(fontWeight: FontWeight.w800),
                     ),
                   ],
@@ -587,11 +786,11 @@ class _BmiHomePageState extends State<BmiHomePage>
                       Expanded(
                         child: Text(
                           'BMI ${_metrics.bmi.toStringAsFixed(1)} • ${_metrics.status}',
-                          style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
-                                    color: statusColor,
-                                    fontWeight: FontWeight.w800,
-                                  ),
+                          style: Theme.of(context).textTheme.titleLarge
+                              ?.copyWith(
+                                color: statusColor,
+                                fontWeight: FontWeight.w800,
+                              ),
                           overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -669,32 +868,92 @@ class _BmiHomePageState extends State<BmiHomePage>
   }
 
   Widget _measurementDeck() {
-    return _InteractiveCard(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            _sectionHeader('Interactive Body Controls', Icons.accessibility_new),
-            const SizedBox(height: 12),
-            _genderToggle(),
-            const SizedBox(height: 10),
-            _heightControl(),
-            const SizedBox(height: 12),
-            _weightControl(),
-            const SizedBox(height: 12),
-            _ageActivityControl(),
-          ],
+    return Column(
+      children: [
+        _InteractiveCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionHeader('Step 1: Profile', Icons.badge_rounded),
+                const SizedBox(height: 8),
+                Text(
+                  'Select your profile type to improve calorie and BMI guidance.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                _genderToggle(),
+              ],
+            ),
+          ),
         ),
-      ),
+        const SizedBox(height: 12),
+        _InteractiveCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionHeader(
+                  'Step 2: Body Values',
+                  Icons.monitor_weight_rounded,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Use sliders or quick chips for fast, beginner-friendly adjustments.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                _heightControl(),
+                const SizedBox(height: 12),
+                _weightControl(),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        _InteractiveCard(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _sectionHeader('Step 3: Lifestyle', Icons.auto_graph_rounded),
+                const SizedBox(height: 8),
+                Text(
+                  'Set age and activity level to tune your maintenance calories.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                _ageActivityControl(),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
   Widget _sectionHeader(String title, IconData icon) {
+    final scheme = Theme.of(context).colorScheme;
     return Row(
       children: [
-        Icon(icon, size: 22),
+        Container(
+          padding: const EdgeInsets.all(7),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: _isDark ? 0.26 : 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, size: 18, color: scheme.primary),
+        ),
         const SizedBox(width: 8),
-        Text(title, style: Theme.of(context).textTheme.titleMedium),
+        Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
       ],
     );
   }
@@ -702,9 +961,21 @@ class _BmiHomePageState extends State<BmiHomePage>
   Widget _genderToggle() {
     return SegmentedButton<Gender>(
       segments: const [
-        ButtonSegment(value: Gender.male, icon: Icon(Icons.male), label: Text('Male')),
-        ButtonSegment(value: Gender.female, icon: Icon(Icons.female), label: Text('Female')),
-        ButtonSegment(value: Gender.other, icon: Icon(Icons.transgender), label: Text('Other')),
+        ButtonSegment(
+          value: Gender.male,
+          icon: Icon(Icons.male),
+          label: Text('Male'),
+        ),
+        ButtonSegment(
+          value: Gender.female,
+          icon: Icon(Icons.female),
+          label: Text('Female'),
+        ),
+        ButtonSegment(
+          value: Gender.other,
+          icon: Icon(Icons.transgender),
+          label: Text('Other'),
+        ),
       ],
       selected: <Gender>{_gender},
       onSelectionChanged: (value) => setState(() => _gender = value.first),
@@ -828,18 +1099,24 @@ class _BmiHomePageState extends State<BmiHomePage>
           const SizedBox(height: 8),
           Row(
             children: [
-              IconButton(onPressed: onMinus, icon: const Icon(Icons.remove_circle_outline)),
+              IconButton(
+                onPressed: onMinus,
+                icon: const Icon(Icons.remove_circle_outline),
+              ),
               Expanded(
                 child: Center(
                   child: Text(
                     valueText,
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.w800,
-                        ),
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
-              IconButton(onPressed: onPlus, icon: const Icon(Icons.add_circle_outline)),
+              IconButton(
+                onPressed: onPlus,
+                icon: const Icon(Icons.add_circle_outline),
+              ),
             ],
           ),
           slider,
@@ -857,7 +1134,10 @@ class _BmiHomePageState extends State<BmiHomePage>
         children: [
           Row(
             children: [
-              Text('Age: $_age', style: Theme.of(context).textTheme.titleMedium),
+              Text(
+                'Age: $_age',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
               const Spacer(),
               IconButton(
                 onPressed: () => setState(() => _age = max(1, _age - 1)),
@@ -909,14 +1189,16 @@ class _BmiHomePageState extends State<BmiHomePage>
               const Icon(Icons.bolt, size: 22),
               const SizedBox(width: 8),
               Expanded(
-                child: Text('Streak $_streak days • XP $_xp • Level ${_metrics.level}'),
+                child: Text(
+                  'Streak $_streak days • XP $_xp • Level ${_metrics.level}',
+                ),
               ),
               FilledButton.tonal(
                 onPressed: _dailyCheckIn,
                 child: const Text('Check-in'),
               ),
             ],
-          )
+          ),
         ],
       ),
     );
@@ -933,7 +1215,8 @@ class _BmiHomePageState extends State<BmiHomePage>
             const SizedBox(height: 10),
             _questTile(
               title: 'Hydration Quest',
-              subtitle: 'Complete ${_metrics.waterLiters.toStringAsFixed(1)}L target',
+              subtitle:
+                  'Complete ${_metrics.waterLiters.toStringAsFixed(1)}L target',
               progress: _hydrationQuest,
               onChanged: (v) {
                 setState(() => _hydrationQuest = v);
@@ -977,13 +1260,18 @@ class _BmiHomePageState extends State<BmiHomePage>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(title,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
+                    Text(
+                      title,
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
                     Text(subtitle),
                   ],
                 ),
               ),
-              FilledButton.tonal(onPressed: onClaim, child: const Text('Claim')),
+              FilledButton.tonal(
+                onPressed: onClaim,
+                child: const Text('Claim'),
+              ),
             ],
           ),
           Slider(value: progress, onChanged: onChanged),
@@ -993,6 +1281,8 @@ class _BmiHomePageState extends State<BmiHomePage>
   }
 
   Widget _insightsDeck() {
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final insightTileRatio = screenWidth < 380 ? 1.06 : 1.22;
     final items = [
       _InsightItem('Height', _metrics.heightShareText, Icons.height),
       _InsightItem(
@@ -1015,7 +1305,11 @@ class _BmiHomePageState extends State<BmiHomePage>
         '${_metrics.maintenanceCalories.toStringAsFixed(0)} kcal/day',
         Icons.bolt,
       ),
-      _InsightItem('Level', '${_metrics.level} (XP $_xp)', Icons.workspace_premium),
+      _InsightItem(
+        'Level',
+        '${_metrics.level} (XP $_xp)',
+        Icons.workspace_premium,
+      ),
     ];
 
     return _InteractiveCard(
@@ -1026,36 +1320,54 @@ class _BmiHomePageState extends State<BmiHomePage>
           children: [
             _sectionHeader('Health Insights', Icons.monitor_heart_outlined),
             const SizedBox(height: 10),
+            _insightChartCard(),
+            const SizedBox(height: 12),
             GridView.builder(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: items.length,
-              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                 crossAxisCount: 2,
                 crossAxisSpacing: 10,
                 mainAxisSpacing: 10,
-                childAspectRatio: 1.45,
+                childAspectRatio: insightTileRatio,
               ),
               itemBuilder: (context, index) {
                 final it = items[index];
+                final color = _insightAccent(index);
                 return Container(
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(16),
-                    color: Theme.of(context)
-                        .colorScheme
-                        .surfaceContainerHighest
-                      .withValues(alpha: 0.4),
+                    color: Theme.of(context).colorScheme.surfaceContainerHighest
+                        .withValues(alpha: 0.4),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Icon(it.icon, size: 18),
+                      Container(
+                        padding: const EdgeInsets.all(7),
+                        decoration: BoxDecoration(
+                          borderRadius: BorderRadius.circular(10),
+                          color: color.withValues(alpha: _isDark ? 0.25 : 0.14),
+                        ),
+                        child: Icon(it.icon, size: 18, color: color),
+                      ),
                       const SizedBox(height: 8),
-                      Text(it.title,
-                          style: const TextStyle(fontWeight: FontWeight.w700)),
+                      Text(
+                        it.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
                       const SizedBox(height: 4),
-                      Text(it.value, maxLines: 3, overflow: TextOverflow.ellipsis),
+                      Expanded(
+                        child: Text(
+                          it.value,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ],
                   ),
                 );
@@ -1067,7 +1379,19 @@ class _BmiHomePageState extends State<BmiHomePage>
     );
   }
 
-  Widget _historyDeck() {
+  Color _insightAccent(int index) {
+    const colors = [
+      Color(0xFF2B7FFF),
+      Color(0xFF34B96A),
+      Color(0xFF16A6D9),
+      Color(0xFFE26A3F),
+      Color(0xFFF08A29),
+      Color(0xFF8E66FF),
+    ];
+    return colors[index % colors.length];
+  }
+
+  Widget _historyDeck({bool compact = false}) {
     return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -1081,21 +1405,319 @@ class _BmiHomePageState extends State<BmiHomePage>
                 padding: EdgeInsets.symmetric(vertical: 8),
                 child: Text('No saved history yet.'),
               )
+            else if (compact)
+              SizedBox(
+                height: 130,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: min(8, _history.length),
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
+                  itemBuilder: (context, index) {
+                    final item = _history[index];
+                    return _historyMiniCard(item);
+                  },
+                ),
+              )
             else
-              ..._history.take(8).map((e) => ListTile(
-                    dense: true,
-                    contentPadding: EdgeInsets.zero,
-                    leading: CircleAvatar(
-                      radius: 16,
-                      child: Text(e.bmi.toStringAsFixed(1)),
+              ..._history
+                  .take(8)
+                  .map(
+                    (e) => ListTile(
+                      dense: true,
+                      contentPadding: EdgeInsets.zero,
+                      leading: CircleAvatar(
+                        radius: 16,
+                        child: Text(e.bmi.toStringAsFixed(1)),
+                      ),
+                      title: Text(
+                        '${e.status} • ${e.weightKg.toStringAsFixed(1)} kg • ${e.heightCm.toStringAsFixed(1)} cm',
+                      ),
+                      subtitle: Text(
+                        '${e.timestamp.year}-${e.timestamp.month.toString().padLeft(2, '0')}-${e.timestamp.day.toString().padLeft(2, '0')}',
+                      ),
                     ),
-                    title: Text(
-                      '${e.status} • ${e.weightKg.toStringAsFixed(1)} kg • ${e.heightCm.toStringAsFixed(1)} cm',
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _historyMiniCard(BmiRecord record) {
+    final date =
+        '${record.timestamp.month.toString().padLeft(2, '0')}/${record.timestamp.day.toString().padLeft(2, '0')}';
+    final statusColor = _statusColor(Theme.of(context).colorScheme);
+    return SizedBox(
+      width: 198,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(16),
+          color: Theme.of(context).colorScheme.surfaceContainerHighest
+              .withValues(alpha: _isDark ? 0.40 : 0.34),
+          border: Border.all(color: statusColor.withValues(alpha: 0.20)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
                     ),
-                    subtitle: Text(
-                      '${e.timestamp.year}-${e.timestamp.month.toString().padLeft(2, '0')}-${e.timestamp.day.toString().padLeft(2, '0')}',
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(10),
+                      color: statusColor.withValues(alpha: 0.14),
                     ),
-                  )),
+                    child: Text(
+                      record.bmi.toStringAsFixed(1),
+                      style: TextStyle(
+                        color: statusColor,
+                        fontWeight: FontWeight.w800,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  Text(date, style: Theme.of(context).textTheme.labelSmall),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                record.status,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '${record.weightKg.toStringAsFixed(1)} kg • ${record.heightCm.toStringAsFixed(0)} cm',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _insightChartCard() {
+    final bmiRatio = (_metrics.bmi / 40).clamp(0.0, 1.0);
+    final hydrationRatio = (_metrics.waterLiters / 4.5).clamp(0.0, 1.0);
+    final energyRatio = (_metrics.maintenanceCalories / 3500).clamp(0.0, 1.0);
+
+    final bars = [
+      _ChartBarData(
+        'BMI',
+        bmiRatio,
+        const Color(0xFF2B7FFF),
+        _metrics.bmi.toStringAsFixed(1),
+      ),
+      _ChartBarData(
+        'Water',
+        hydrationRatio,
+        const Color(0xFF16A6D9),
+        '${_metrics.waterLiters.toStringAsFixed(1)}L',
+      ),
+      _ChartBarData(
+        'Energy',
+        energyRatio,
+        const Color(0xFFF08A29),
+        _metrics.maintenanceCalories.toStringAsFixed(0),
+      ),
+    ];
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: _softCardDecoration(),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Body Snapshot Chart',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'A visual view of your current body metrics and daily targets.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 130,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: bars
+                  .map(
+                    (bar) => Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: _animatedChartBar(bar: bar),
+                      ),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _animatedChartBar({required _ChartBarData bar}) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: bar.value),
+      duration: const Duration(milliseconds: 750),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, _) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [
+            Text(
+              bar.label,
+              style: Theme.of(
+                context,
+              ).textTheme.labelMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Expanded(
+              child: Align(
+                alignment: Alignment.bottomCenter,
+                child: Container(
+                  width: 28,
+                  height: 90 * value,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(14),
+                    gradient: LinearGradient(
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                      colors: [bar.color, bar.color.withValues(alpha: 0.45)],
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: bar.color.withValues(
+                          alpha: _isDark ? 0.30 : 0.18,
+                        ),
+                        blurRadius: 12,
+                        offset: const Offset(0, 6),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(bar.title, style: Theme.of(context).textTheme.labelSmall),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _tabIcon({
+    required IconData icon,
+    required Color color,
+    required bool selected,
+    required bool compact,
+  }) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween<double>(begin: 0, end: selected ? 1 : 0),
+      duration: const Duration(milliseconds: 280),
+      curve: Curves.easeOutCubic,
+      builder: (context, t, _) {
+        return Transform.scale(
+          scale: 1 + (0.08 * t),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeOutCubic,
+            padding: EdgeInsets.symmetric(
+              horizontal: compact ? 8 : 10,
+              vertical: compact ? 6 : 7,
+            ),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(14),
+              gradient: t > 0
+                  ? LinearGradient(
+                      colors: [
+                        color.withValues(alpha: 0.32),
+                        color.withValues(alpha: 0.14),
+                      ],
+                    )
+                  : null,
+              border: Border.all(
+                color: color.withValues(alpha: t > 0 ? 0.50 : 0.18),
+              ),
+              boxShadow: t > 0
+                  ? [
+                      BoxShadow(
+                        color: color.withValues(alpha: _isDark ? 0.28 : 0.20),
+                        blurRadius: 12,
+                        offset: const Offset(0, 5),
+                      ),
+                    ]
+                  : const [],
+            ),
+            child: Icon(icon, color: color, size: compact ? 20 : 22),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _onboardingBanner() {
+    final tip = _onboardingTips[_onboardingStep];
+    return _InteractiveCard(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(tip.icon, size: 22),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Quick Onboarding',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                TextButton(
+                  onPressed: _dismissOnboarding,
+                  child: const Text('Done'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (child, animation) {
+                return FadeTransition(opacity: animation, child: child);
+              },
+              child: Column(
+                key: ValueKey<int>(_onboardingStep),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    tip.title,
+                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(tip.body),
+                ],
+              ),
+            ),
           ],
         ),
       ),
@@ -1108,6 +1730,27 @@ class _InsightItem {
 
   final String title;
   final String value;
+  final IconData icon;
+}
+
+class _ChartBarData {
+  const _ChartBarData(this.title, this.value, this.color, this.label);
+
+  final String title;
+  final double value;
+  final Color color;
+  final String label;
+}
+
+class _OnboardingTip {
+  const _OnboardingTip({
+    required this.title,
+    required this.body,
+    required this.icon,
+  });
+
+  final String title;
+  final String body;
   final IconData icon;
 }
 
@@ -1158,9 +1801,7 @@ class _InteractiveCardState extends State<_InteractiveCard> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final scale = _pressed
-        ? 0.992
-        : (_hovered ? 1.008 : 1.0);
+    final scale = _pressed ? 0.992 : (_hovered ? 1.008 : 1.0);
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
@@ -1183,19 +1824,17 @@ class _InteractiveCardState extends State<_InteractiveCard> {
               borderRadius: BorderRadius.circular(24),
               boxShadow: [
                 BoxShadow(
-                  color: (isDark
-                          ? Theme.of(context).colorScheme.primary
-                          : Colors.black)
-                      .withValues(alpha: _hovered ? 0.16 : 0.08),
+                  color:
+                      (isDark
+                              ? Theme.of(context).colorScheme.primary
+                              : Colors.black)
+                          .withValues(alpha: _hovered ? 0.16 : 0.08),
                   blurRadius: _hovered ? 22 : 14,
                   offset: const Offset(0, 8),
                 ),
               ],
             ),
-            child: Card(
-              margin: EdgeInsets.zero,
-              child: widget.child,
-            ),
+            child: Card(margin: EdgeInsets.zero, child: widget.child),
           ),
         ),
       ),
