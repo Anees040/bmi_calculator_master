@@ -23,6 +23,7 @@ class BmiHomePage extends StatefulWidget {
 
 class _BmiHomePageState extends State<BmiHomePage> {
   final LocalStore _store = LocalStore();
+  final PageController _pageController = PageController();
   int _selectedTab = 0;
 
   double _heightCm = 170;
@@ -54,6 +55,12 @@ class _BmiHomePageState extends State<BmiHomePage> {
   void initState() {
     super.initState();
     _loadState();
+  }
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadState() async {
@@ -385,8 +392,13 @@ class _BmiHomePageState extends State<BmiHomePage> {
                 ),
               ),
               Expanded(
-                child: IndexedStack(
-                  index: _selectedTab,
+                child: PageView(
+                  controller: _pageController,
+                  onPageChanged: (index) {
+                    if (_selectedTab != index) {
+                      setState(() => _selectedTab = index);
+                    }
+                  },
                   children: [
                     _dashboardTab(scheme),
                     _trackerTab(),
@@ -400,6 +412,11 @@ class _BmiHomePageState extends State<BmiHomePage> {
                   selectedIndex: _selectedTab,
                   onDestinationSelected: (index) {
                     setState(() => _selectedTab = index);
+                    _pageController.animateToPage(
+                      index,
+                      duration: const Duration(milliseconds: 380),
+                      curve: Curves.easeOutCubic,
+                    );
                   },
                   destinations: const [
                     NavigationDestination(
@@ -433,9 +450,9 @@ class _BmiHomePageState extends State<BmiHomePage> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        _heroArena(statusColor),
+        _revealCard(0, _heroArena(statusColor)),
         const SizedBox(height: 14),
-        _questDeck(),
+        _revealCard(1, _questDeck()),
       ],
     );
   }
@@ -444,7 +461,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        _measurementDeck(),
+        _revealCard(0, _measurementDeck()),
       ],
     );
   }
@@ -453,10 +470,32 @@ class _BmiHomePageState extends State<BmiHomePage> {
     return ListView(
       padding: const EdgeInsets.all(14),
       children: [
-        _insightsDeck(),
+        _revealCard(0, _insightsDeck()),
         const SizedBox(height: 14),
-        _historyDeck(),
+        _revealCard(1, _historyDeck()),
       ],
+    );
+  }
+
+  Widget _revealCard(int index, Widget child) {
+    if (!_isDark) {
+      return child;
+    }
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<String>('reveal-$_selectedTab-$index'),
+      tween: Tween<double>(begin: 0, end: 1),
+      duration: Duration(milliseconds: 260 + (index * 140)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, builtChild) {
+        return Opacity(
+          opacity: value,
+          child: Transform.translate(
+            offset: Offset(0, (1 - value) * 22),
+            child: builtChild,
+          ),
+        );
+      },
+      child: child,
     );
   }
 
@@ -499,11 +538,23 @@ class _BmiHomePageState extends State<BmiHomePage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('BMI ${_metrics.bmi.toStringAsFixed(1)} • ${_metrics.status}',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                            color: statusColor,
-                            fontWeight: FontWeight.w800,
-                          )),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'BMI ${_metrics.bmi.toStringAsFixed(1)} • ${_metrics.status}',
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    color: statusColor,
+                                    fontWeight: FontWeight.w800,
+                                  ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _statusMascot(statusColor),
+                    ],
+                  ),
                   const SizedBox(height: 8),
                   Text(_metrics.advice),
                   const SizedBox(height: 10),
@@ -529,6 +580,47 @@ class _BmiHomePageState extends State<BmiHomePage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _statusMascot(Color statusColor) {
+    final status = _metrics.status;
+    IconData icon;
+    if (status == 'Normal') {
+      icon = Icons.sentiment_very_satisfied;
+    } else if (status == 'Underweight') {
+      icon = Icons.sentiment_neutral;
+    } else if (status == 'Overweight') {
+      icon = Icons.sentiment_dissatisfied;
+    } else {
+      icon = Icons.health_and_safety;
+    }
+
+    return TweenAnimationBuilder<double>(
+      key: ValueKey<String>('mascot-$status'),
+      tween: Tween<double>(begin: 0.9, end: 1),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutBack,
+      builder: (context, value, _) {
+        return Transform.scale(
+          scale: value,
+          child: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: statusColor.withValues(alpha: _isDark ? 0.26 : 0.16),
+              boxShadow: [
+                BoxShadow(
+                  color: statusColor.withValues(alpha: _isDark ? 0.35 : 0.15),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Icon(icon, color: statusColor, size: 22),
+          ),
+        );
+      },
     );
   }
 
