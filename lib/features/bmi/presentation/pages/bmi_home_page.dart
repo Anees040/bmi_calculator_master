@@ -6,7 +6,6 @@ import 'package:bmi_calculator/features/bmi/domain/health_metrics.dart';
 import 'package:bmi_calculator/features/bmi/presentation/widgets/app_logo.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 
 class BmiHomePage extends StatefulWidget {
   const BmiHomePage({
@@ -24,6 +23,7 @@ class BmiHomePage extends StatefulWidget {
 
 class _BmiHomePageState extends State<BmiHomePage> {
   final LocalStore _store = LocalStore();
+  int _selectedTab = 0;
 
   double _heightCm = 170;
   double _weightKg = 70;
@@ -123,6 +123,35 @@ class _BmiHomePageState extends State<BmiHomePage> {
       default:
         return scheme.error;
     }
+  }
+
+  bool get _isDark => Theme.of(context).brightness == Brightness.dark;
+
+  BoxDecoration _softCardDecoration() {
+    return BoxDecoration(
+      borderRadius: BorderRadius.circular(18),
+      color: Theme.of(context)
+          .colorScheme
+          .surfaceContainerHighest
+          .withValues(alpha: _isDark ? 0.30 : 0.45),
+      border: Border.all(
+        color: Theme.of(context).colorScheme.primary.withValues(
+              alpha: _isDark ? 0.16 : 0.08,
+            ),
+      ),
+      boxShadow: _isDark
+          ? [
+              BoxShadow(
+                color: Theme.of(context)
+                    .colorScheme
+                    .primary
+                    .withValues(alpha: 0.12),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ]
+          : [],
+    );
   }
 
   void _adjustHeight(bool increase) {
@@ -273,33 +302,77 @@ class _BmiHomePageState extends State<BmiHomePage> {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final statusColor = _statusColor(scheme);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isDark = _isDark;
 
     return Scaffold(
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: isDark
-                ? const [Color(0xFF0A1120), Color(0xFF152640), Color(0xFF1A1230)]
-                : const [Color(0xFFEFF8FF), Color(0xFFF8FFF9), Color(0xFFF4F3FF)],
+      body: Stack(
+        children: [
+          AnimatedContainer(
+            duration: const Duration(milliseconds: 450),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: isDark
+                    ? const [
+                        Color(0xFF090F1A),
+                        Color(0xFF111D31),
+                        Color(0xFF1A1232),
+                      ]
+                    : const [
+                        Color(0xFFEFF8FF),
+                        Color(0xFFF8FFF9),
+                        Color(0xFFF4F3FF),
+                      ],
+              ),
+            ),
           ),
-        ),
-        child: SafeArea(
-          child: CustomScrollView(
-            slivers: [
-              SliverAppBar(
-                floating: true,
-                backgroundColor: Colors.transparent,
-                surfaceTintColor: Colors.transparent,
-                title: Row(
+          Positioned(
+            top: -80,
+            right: -40,
+            child: _GlowOrb(
+              color: Theme.of(context).colorScheme.primary,
+              size: 220,
+              alpha: isDark ? 0.24 : 0.12,
+            ),
+          ),
+          Positioned(
+            bottom: 120,
+            left: -70,
+            child: _GlowOrb(
+              color: Theme.of(context).colorScheme.secondary,
+              size: 210,
+              alpha: isDark ? 0.20 : 0.10,
+            ),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 10, 14, 8),
+                child: Row(
                   children: [
                     const AppLogo(size: 40),
                     const SizedBox(width: 10),
-                    const Text('BMI Smart Companion'),
-                    const Spacer(),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'BMI Smart Companion',
+                            style: Theme.of(context)
+                                .textTheme
+                                .titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          Text(
+                            'Modern health dashboard',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
                     IconButton(
                       onPressed: widget.onToggleTheme,
                       icon: Icon(
@@ -311,27 +384,79 @@ class _BmiHomePageState extends State<BmiHomePage> {
                   ],
                 ),
               ),
-              SliverPadding(
-                padding: const EdgeInsets.all(14),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    _heroArena(statusColor),
-                    const SizedBox(height: 14),
-                    _measurementDeck(),
-                    const SizedBox(height: 14),
-                    _questDeck(),
-                    const SizedBox(height: 14),
-                    _insightsDeck(),
-                    const SizedBox(height: 14),
-                    _historyDeck(),
-                    const SizedBox(height: 30),
-                  ]),
+              Expanded(
+                child: IndexedStack(
+                  index: _selectedTab,
+                  children: [
+                    _dashboardTab(scheme),
+                    _trackerTab(),
+                    _insightsTab(),
+                  ],
                 ),
               ),
-            ],
+              Padding(
+                padding: const EdgeInsets.fromLTRB(12, 0, 12, 10),
+                child: NavigationBar(
+                  selectedIndex: _selectedTab,
+                  onDestinationSelected: (index) {
+                    setState(() => _selectedTab = index);
+                  },
+                  destinations: const [
+                    NavigationDestination(
+                      icon: Icon(Icons.dashboard_outlined),
+                      selectedIcon: Icon(Icons.dashboard),
+                      label: 'Dashboard',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.tune_outlined),
+                      selectedIcon: Icon(Icons.tune),
+                      label: 'Tracker',
+                    ),
+                    NavigationDestination(
+                      icon: Icon(Icons.insights_outlined),
+                      selectedIcon: Icon(Icons.insights),
+                      label: 'Insights',
+                    ),
+                  ],
+                ),
+              ),
+              ],
+            ),
           ),
-        ),
+        ],
       ),
+    );
+  }
+
+  Widget _dashboardTab(ColorScheme scheme) {
+    final statusColor = _statusColor(scheme);
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        _heroArena(statusColor),
+        const SizedBox(height: 14),
+        _questDeck(),
+      ],
+    );
+  }
+
+  Widget _trackerTab() {
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        _measurementDeck(),
+      ],
+    );
+  }
+
+  Widget _insightsTab() {
+    return ListView(
+      padding: const EdgeInsets.all(14),
+      children: [
+        _insightsDeck(),
+        const SizedBox(height: 14),
+        _historyDeck(),
+      ],
     );
   }
 
@@ -413,7 +538,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            _sectionHeader('Interactive Body Controls', 'images/person.svg'),
+            _sectionHeader('Interactive Body Controls', Icons.accessibility_new),
             const SizedBox(height: 12),
             _genderToggle(),
             const SizedBox(height: 10),
@@ -428,10 +553,10 @@ class _BmiHomePageState extends State<BmiHomePage> {
     );
   }
 
-  Widget _sectionHeader(String title, String iconAsset) {
+  Widget _sectionHeader(String title, IconData icon) {
     return Row(
       children: [
-        SvgPicture.asset(iconAsset, width: 24, height: 24),
+        Icon(icon, size: 22),
         const SizedBox(width: 8),
         Text(title, style: Theme.of(context).textTheme.titleMedium),
       ],
@@ -548,11 +673,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 250),
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-      ),
+      decoration: _softCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -595,11 +716,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   Widget _ageActivityControl() {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(18),
-        color:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-      ),
+      decoration: _softCardDecoration(),
       child: Column(
         children: [
           Row(
@@ -653,7 +770,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
           const SizedBox(height: 10),
           Row(
             children: [
-              SvgPicture.asset('images/pacman.svg', width: 24, height: 24),
+              const Icon(Icons.bolt, size: 22),
               const SizedBox(width: 8),
               Expanded(
                 child: Text('Streak $_streak days • XP $_xp • Level ${_metrics.level}'),
@@ -676,7 +793,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionHeader('Gamification Quests', 'images/pacman.svg'),
+            _sectionHeader('Gamification Quests', Icons.sports_esports),
             const SizedBox(height: 10),
             _questTile(
               title: 'Hydration Quest',
@@ -714,11 +831,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }) {
     return Container(
       padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(16),
-        color:
-            Theme.of(context).colorScheme.surfaceContainerHighest.withValues(alpha: 0.45),
-      ),
+      decoration: _softCardDecoration(),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -775,7 +888,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionHeader('Health Insights', 'images/weight_arrow.svg'),
+            _sectionHeader('Health Insights', Icons.monitor_heart_outlined),
             const SizedBox(height: 10),
             GridView.builder(
               shrinkWrap: true,
@@ -825,7 +938,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionHeader('Recent Results', 'images/user.svg'),
+            _sectionHeader('Recent Results', Icons.history),
             const SizedBox(height: 8),
             if (_history.isEmpty)
               const Padding(
@@ -860,4 +973,35 @@ class _InsightItem {
   final String title;
   final String value;
   final IconData icon;
+}
+
+class _GlowOrb extends StatelessWidget {
+  const _GlowOrb({
+    required this.color,
+    required this.size,
+    required this.alpha,
+  });
+
+  final Color color;
+  final double size;
+  final double alpha;
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [
+              color.withValues(alpha: alpha),
+              color.withValues(alpha: 0),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }

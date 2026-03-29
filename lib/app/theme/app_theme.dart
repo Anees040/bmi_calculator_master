@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 
 class AppTheme {
-  static const Color _lightPrimary = Color(0xFF1277A8);
-  static const Color _lightSecondary = Color(0xFF13B08A);
-  static const Color _lightSurface = Color(0xFFF5F8FC);
+  static const Color _lightPrimary = Color(0xFF006D9B);
+  static const Color _lightSecondary = Color(0xFF008B70);
+  static const Color _lightSurface = Color(0xFFF4F7FB);
 
-  static const Color _darkPrimary = Color(0xFF69D2FF);
-  static const Color _darkSecondary = Color(0xFF5EF0C3);
-  static const Color _darkSurface = Color(0xFF0D1623);
+  static const Color _darkPrimary = Color(0xFF69D8FF);
+  static const Color _darkSecondary = Color(0xFF64F0C7);
+  static const Color _darkSurface = Color(0xFF0B1320);
 
   static ThemeData light() {
     final scheme = ColorScheme.fromSeed(
@@ -22,6 +22,14 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: _lightSurface,
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: Colors.white.withValues(alpha: 0.92),
+        indicatorColor: scheme.primary.withValues(alpha: 0.16),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: scheme.primary,
+        inactiveTrackColor: scheme.primary.withValues(alpha: 0.22),
+      ),
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 0,
@@ -47,8 +55,16 @@ class AppTheme {
       useMaterial3: true,
       colorScheme: scheme,
       scaffoldBackgroundColor: _darkSurface,
+      navigationBarTheme: NavigationBarThemeData(
+        backgroundColor: const Color(0xFF111D2F).withValues(alpha: 0.95),
+        indicatorColor: _darkPrimary.withValues(alpha: 0.26),
+      ),
+      sliderTheme: SliderThemeData(
+        activeTrackColor: _darkPrimary,
+        inactiveTrackColor: _darkPrimary.withValues(alpha: 0.2),
+      ),
       cardTheme: CardThemeData(
-        color: const Color(0xFF152339),
+        color: const Color(0xFF142237),
         elevation: 0,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
