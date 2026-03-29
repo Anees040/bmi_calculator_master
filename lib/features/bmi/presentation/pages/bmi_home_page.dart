@@ -21,9 +21,11 @@ class BmiHomePage extends StatefulWidget {
   State<BmiHomePage> createState() => _BmiHomePageState();
 }
 
-class _BmiHomePageState extends State<BmiHomePage> {
+class _BmiHomePageState extends State<BmiHomePage>
+    with SingleTickerProviderStateMixin {
   final LocalStore _store = LocalStore();
   final PageController _pageController = PageController();
+  late final AnimationController _bgMotionController;
   int _selectedTab = 0;
 
   double _heightCm = 170;
@@ -54,13 +56,30 @@ class _BmiHomePageState extends State<BmiHomePage> {
   @override
   void initState() {
     super.initState();
+    _bgMotionController = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 12),
+    )..repeat(reverse: true);
     _loadState();
   }
 
   @override
   void dispose() {
     _pageController.dispose();
+    _bgMotionController.dispose();
     super.dispose();
+  }
+
+  Future<void> _tapFeedback({bool strong = false}) async {
+    try {
+      if (strong) {
+        await HapticFeedback.mediumImpact();
+      } else {
+        await HapticFeedback.selectionClick();
+      }
+    } catch (_) {
+      // Haptics can be unavailable on some platforms (e.g., web).
+    }
   }
 
   Future<void> _loadState() async {
@@ -162,6 +181,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   void _adjustHeight(bool increase) {
+    _tapFeedback();
     final step = _heightUnit == HeightUnit.ftIn ? 1.27 : 0.5;
     setState(() {
       _heightCm = (_heightCm + (increase ? step : -step)).clamp(100, 230);
@@ -169,6 +189,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   void _adjustWeight(bool increase) {
+    _tapFeedback();
     final step = _weightUnit == WeightUnit.kg ? 0.5 : 0.226796;
     setState(() {
       _weightKg = (_weightKg + (increase ? step : -step)).clamp(30, 250);
@@ -249,6 +270,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   void _saveRecord() {
+    _tapFeedback(strong: true);
     final record = BmiRecord(
       timestamp: DateTime.now(),
       bmi: _metrics.bmi,
@@ -270,6 +292,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   void _dailyCheckIn() {
+    _tapFeedback();
     final now = DateTime.now();
     final marker =
         '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')}';
@@ -288,6 +311,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   void _claimQuest({required bool hydration}) {
+    _tapFeedback();
     final progress = hydration ? _hydrationQuest : _stepsQuest;
     if (progress < 1) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -314,43 +338,59 @@ class _BmiHomePageState extends State<BmiHomePage> {
     return Scaffold(
       body: Stack(
         children: [
-          AnimatedContainer(
-            duration: const Duration(milliseconds: 450),
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: isDark
-                    ? const [
-                        Color(0xFF090F1A),
-                        Color(0xFF111D31),
-                        Color(0xFF1A1232),
-                      ]
-                    : const [
-                        Color(0xFFEFF8FF),
-                        Color(0xFFF8FFF9),
-                        Color(0xFFF4F3FF),
-                      ],
-              ),
-            ),
+          AnimatedBuilder(
+            animation: _bgMotionController,
+            builder: (context, _) {
+              final t = _bgMotionController.value;
+              return DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment(-1 + (t * 0.6), -1),
+                    end: Alignment(1, 1 - (t * 0.6)),
+                    colors: isDark
+                        ? const [
+                            Color(0xFF090F1A),
+                            Color(0xFF111D31),
+                            Color(0xFF1A1232),
+                          ]
+                        : const [
+                            Color(0xFFEFF8FF),
+                            Color(0xFFF8FFF9),
+                            Color(0xFFF4F3FF),
+                          ],
+                  ),
+                ),
+                child: const SizedBox.expand(),
+              );
+            },
           ),
-          Positioned(
-            top: -80,
-            right: -40,
-            child: _GlowOrb(
-              color: Theme.of(context).colorScheme.primary,
-              size: 220,
-              alpha: isDark ? 0.24 : 0.12,
-            ),
+          AnimatedBuilder(
+            animation: _bgMotionController,
+            builder: (context, _) {
+              return Positioned(
+                top: -80 + (18 * _bgMotionController.value),
+                right: -40 + (12 * _bgMotionController.value),
+                child: _GlowOrb(
+                  color: Theme.of(context).colorScheme.primary,
+                  size: 220,
+                  alpha: isDark ? 0.24 : 0.12,
+                ),
+              );
+            },
           ),
-          Positioned(
-            bottom: 120,
-            left: -70,
-            child: _GlowOrb(
-              color: Theme.of(context).colorScheme.secondary,
-              size: 210,
-              alpha: isDark ? 0.20 : 0.10,
-            ),
+          AnimatedBuilder(
+            animation: _bgMotionController,
+            builder: (context, _) {
+              return Positioned(
+                bottom: 120 - (16 * _bgMotionController.value),
+                left: -70 + (10 * _bgMotionController.value),
+                child: _GlowOrb(
+                  color: Theme.of(context).colorScheme.secondary,
+                  size: 210,
+                  alpha: isDark ? 0.20 : 0.10,
+                ),
+              );
+            },
           ),
           SafeArea(
             child: Column(
@@ -381,7 +421,10 @@ class _BmiHomePageState extends State<BmiHomePage> {
                       ),
                     ),
                     IconButton(
-                      onPressed: widget.onToggleTheme,
+                      onPressed: () {
+                        _tapFeedback();
+                        widget.onToggleTheme();
+                      },
                       icon: Icon(
                         widget.mode == ThemeMode.dark
                             ? Icons.light_mode
@@ -411,6 +454,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
                 child: NavigationBar(
                   selectedIndex: _selectedTab,
                   onDestinationSelected: (index) {
+                    _tapFeedback();
                     setState(() => _selectedTab = index);
                     _pageController.animateToPage(
                       index,
@@ -500,7 +544,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   Widget _heroArena(Color statusColor) {
-    return Card(
+    return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -625,7 +669,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   Widget _measurementDeck() {
-    return Card(
+    return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -879,7 +923,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   Widget _questDeck() {
-    return Card(
+    return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -974,7 +1018,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
       _InsightItem('Level', '${_metrics.level} (XP $_xp)', Icons.workspace_premium),
     ];
 
-    return Card(
+    return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1024,7 +1068,7 @@ class _BmiHomePageState extends State<BmiHomePage> {
   }
 
   Widget _historyDeck() {
-    return Card(
+    return _InteractiveCard(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -1091,6 +1135,67 @@ class _GlowOrb extends StatelessWidget {
               color.withValues(alpha: alpha),
               color.withValues(alpha: 0),
             ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _InteractiveCard extends StatefulWidget {
+  const _InteractiveCard({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_InteractiveCard> createState() => _InteractiveCardState();
+}
+
+class _InteractiveCardState extends State<_InteractiveCard> {
+  bool _hovered = false;
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final scale = _pressed
+        ? 0.992
+        : (_hovered ? 1.008 : 1.0);
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() {
+        _hovered = false;
+        _pressed = false;
+      }),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) => setState(() => _pressed = false),
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 120),
+          scale: scale,
+          curve: Curves.easeOut,
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 180),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(24),
+              boxShadow: [
+                BoxShadow(
+                  color: (isDark
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.black)
+                      .withValues(alpha: _hovered ? 0.16 : 0.08),
+                  blurRadius: _hovered ? 22 : 14,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: Card(
+              margin: EdgeInsets.zero,
+              child: widget.child,
+            ),
           ),
         ),
       ),
