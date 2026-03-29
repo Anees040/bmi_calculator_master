@@ -23,8 +23,8 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: _lightSurface,
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: Colors.white.withValues(alpha: 0.92),
-        indicatorColor: scheme.primary.withValues(alpha: 0.16),
+        backgroundColor: Colors.white,
+        indicatorColor: Colors.transparent,
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: scheme.primary,
@@ -56,8 +56,8 @@ class AppTheme {
       colorScheme: scheme,
       scaffoldBackgroundColor: _darkSurface,
       navigationBarTheme: NavigationBarThemeData(
-        backgroundColor: const Color(0xFF111D2F).withValues(alpha: 0.95),
-        indicatorColor: _darkPrimary.withValues(alpha: 0.26),
+        backgroundColor: const Color(0xFF111D2F),
+        indicatorColor: Colors.transparent,
       ),
       sliderTheme: SliderThemeData(
         activeTrackColor: _darkPrimary,
