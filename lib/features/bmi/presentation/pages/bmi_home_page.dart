@@ -643,10 +643,72 @@ class _BmiHomePageState extends State<BmiHomePage>
       children: [
         _revealCard(0, _heroArena(statusColor)),
         const SizedBox(height: 14),
-        _revealCard(1, _historyDeck(compact: true)),
+        _revealCard(1, _dashboardQuickActions()),
         const SizedBox(height: 14),
-        _revealCard(2, _questDeck()),
+        _revealCard(2, _historyDeck(compact: true)),
+        const SizedBox(height: 14),
+        _revealCard(3, _questDeck()),
       ],
+    );
+  }
+
+  Widget _dashboardQuickActions() {
+    return _InteractiveCard(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _sectionHeader('Quick Actions', Icons.flash_on_rounded),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _actionPill(
+                  title: 'Save Record',
+                  icon: Icons.bookmark_add_rounded,
+                  color: const Color(0xFF2B7FFF),
+                  onTap: _saveRecord,
+                ),
+                _actionPill(
+                  title: 'Daily Check-In',
+                  icon: Icons.bolt_rounded,
+                  color: const Color(0xFF1CBA73),
+                  onTap: _dailyCheckIn,
+                ),
+                _actionPill(
+                  title: 'Copy Summary',
+                  icon: Icons.copy_rounded,
+                  color: const Color(0xFFF08A29),
+                  onTap: _copySummary,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actionPill({
+    required String title,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return ActionChip(
+      avatar: Icon(icon, size: 18, color: color),
+      label: Text(title),
+      onPressed: () {
+        _tapFeedback();
+        onTap();
+      },
+      side: BorderSide(color: color.withValues(alpha: 0.24)),
+      backgroundColor: color.withValues(alpha: _isDark ? 0.24 : 0.10),
+      labelStyle: Theme.of(
+        context,
+      ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
     );
   }
 
@@ -1248,6 +1310,8 @@ class _BmiHomePageState extends State<BmiHomePage>
     required ValueChanged<double> onChanged,
     required VoidCallback onClaim,
   }) {
+    final canClaim = progress >= 1;
+    final progressPercent = (progress * 100).clamp(0, 100).toStringAsFixed(0);
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: _softCardDecoration(),
@@ -1269,11 +1333,26 @@ class _BmiHomePageState extends State<BmiHomePage>
                 ),
               ),
               FilledButton.tonal(
-                onPressed: onClaim,
-                child: const Text('Claim'),
+                onPressed: canClaim ? onClaim : null,
+                child: Text(canClaim ? 'Claim' : '$progressPercent%'),
               ),
             ],
           ),
+          const SizedBox(height: 8),
+          LinearProgressIndicator(
+            value: progress,
+            minHeight: 8,
+            borderRadius: BorderRadius.circular(12),
+            backgroundColor: Theme.of(
+              context,
+            ).colorScheme.primary.withValues(alpha: 0.12),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            canClaim ? 'Ready to claim reward' : 'Progress: $progressPercent%',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 2),
           Slider(value: progress, onChanged: onChanged),
         ],
       ),
