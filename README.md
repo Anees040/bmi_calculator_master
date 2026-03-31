@@ -280,25 +280,6 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 </div>
 
-1. App preview (legacy animation reference):
-
-![Implementation Preview](final_result.gif)
-
-2. In-app visual assets are maintained in [images](images).
-
-## Tech Stack
-
-1. Flutter (stable channel)
-2. Dart
-3. SharedPreferences for local persistence
-4. flutter_svg for SVG-based visuals
-
-## Project Structure
-
-The active runtime implementation is currently centered in [lib/main.dart](lib/main.dart), with supporting assets in [images](images).
-
-## Getting Started
-
 ### Prerequisites
 
 1. Flutter SDK installed and configured.
