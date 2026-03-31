@@ -11,16 +11,12 @@ A **production-ready, feature-rich health companion app** built with Flutter. BM
 
 ## 📋 Table of Contents
 
-- [Overview](#overview)
-- [Key Features](#key-features)
-- [Screenshots](#screenshots)
-- [Tech Stack](#tech-stack)
-- [Installation](#installation)
-- [Usage](#usage)
-- [Architecture](#architecture)
-- [Contributing](#contributing)
-- [License](#license)
-- [Contact](#contact)
+| Section | Link |
+|---------|------|
+| **Getting Started** | [Overview](#-overview) • [Installation](#-installation) |
+| **Features & Usage** | [Key Features](#-key-features) • [Usage](#-usage) • [Screenshots](#-screenshots) |
+| **Technical** | [Tech Stack](#-tech-stack) • [Architecture](#-architecture) |
+| **Community** | [Contributing](#-contributing) • [License](#-license) • [Contact](#-contact) |
 
 ---
 
