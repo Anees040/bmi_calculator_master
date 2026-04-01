@@ -714,11 +714,13 @@ class _BmiHomePageState extends State<BmiHomePage>
 
   Widget _trackerTab(double contentBottomInset) {
     return ListView(
-      padding: EdgeInsets.fromLTRB(14, 14, 14, 14 + contentBottomInset),
+      padding: EdgeInsets.fromLTRB(14, 12, 14, 14 + contentBottomInset),
       children: [
-        _revealCard(0, _trackerHeroCard()),
-        const SizedBox(height: 14),
-        _revealCard(1, _measurementDeck()),
+        _revealCard(0, _trackerCompactHeader()),
+        const SizedBox(height: 16),
+        _revealCard(1, _trackerMeasurementCompact()),
+        const SizedBox(height: 16),
+        _revealCard(2, _trackerProfileCompact()),
       ],
     );
   }
@@ -730,28 +732,324 @@ class _BmiHomePageState extends State<BmiHomePage>
     );
   }
 
-  Widget _trackerHeroCard() {
+  Widget _trackerCompactHeader() {
+    final scheme = Theme.of(context).colorScheme;
+    final statusColor = _getStatusColor();
+    final bmiValue = _metrics.bmi.toStringAsFixed(1);
+    
     return _InteractiveCard(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(14),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _sectionHeader('Tracker Setup', Icons.tune_rounded),
-            const SizedBox(height: 8),
-            Text(
-              'Three quick steps: set profile, adjust body values, then pick activity.',
-              style: Theme.of(context).textTheme.bodyMedium,
+            Row(
+              children: [
+                TweenAnimationBuilder<double>(
+                  tween: Tween<double>(begin: 0, end: _metrics.healthScore / 100),
+                  duration: const Duration(milliseconds: 600),
+                  curve: Curves.easeOutCubic,
+                  builder: (context, value, _) {
+                    return Stack(
+                      alignment: Alignment.center,
+                      children: [
+                        SizedBox(
+                          width: 70,
+                          height: 70,
+                          child: CircularProgressIndicator(
+                            value: value,
+                            strokeWidth: 6,
+                            backgroundColor: Colors.white.withValues(alpha: 0.15),
+                            valueColor: AlwaysStoppedAnimation(statusColor),
+                          ),
+                        ),
+                        Text(
+                          bmiValue,
+                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                            fontWeight: FontWeight.w800,
+                            color: statusColor,
+                          ),
+                        ),
+                      ],
+                    );
+                  },
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _metrics.status,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w700,
+                          color: statusColor,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Level ${_metrics.level} • $_streak day streak',
+                        style: Theme.of(context).textTheme.labelSmall,
+                      ),
+                      const SizedBox(height: 6),
+                      Row(
+                        children: [
+                          Icon(Icons.star, size: 14, color: scheme.primary),
+                          const SizedBox(width: 4),
+                          Text('$_xp XP',
+                            style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonal(
+                    onPressed: _saveRecord,
+                    child: const Text('Save'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: _copySummary,
+                    child: const Text('Copy'),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _trackerMeasurementCompact() {
+    return _InteractiveCard(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            _compactMeasurementRow(
+              icon: Icons.straighten,
+              label: 'Height',
+              value: _heightDisplay,
+              onMinus: () => _adjustHeight(false),
+              onPlus: () => _adjustHeight(true),
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SegmentedButton<HeightUnit>(
+                    segments: const [
+                      ButtonSegment(value: HeightUnit.cm, label: Text('cm'), icon: Icon(Icons.straighten)),
+                      ButtonSegment(value: HeightUnit.meter, label: Text('m')),
+                      ButtonSegment(value: HeightUnit.ftIn, label: Text('ft')),
+                    ],
+                    selected: <HeightUnit>{_heightUnit},
+                    onSelectionChanged: (v) => _setHeightUnit(v.first),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Slider(
+              min: 100,
+              max: 230,
+              value: _heightCm,
+              divisions: 260,
+              onChanged: (v) => setState(() => _heightCm = v),
+            ),
+            const SizedBox(height: 12),
+            _compactMeasurementRow(
+              icon: Icons.monitor_weight,
+              label: 'Weight',
+              value: _weightDisplay,
+              onMinus: () => _adjustWeight(false),
+              onPlus: () => _adjustWeight(true),
+            ),
+            const SizedBox(height: 12),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                children: [
+                  SegmentedButton<WeightUnit>(
+                    segments: const [
+                      ButtonSegment(value: WeightUnit.kg, label: Text('kg'), icon: Icon(Icons.monitor_weight)),
+                      ButtonSegment(value: WeightUnit.lb, label: Text('lb')),
+                    ],
+                    selected: <WeightUnit>{_weightUnit},
+                    onSelectionChanged: (v) => _setWeightUnit(v.first),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+            Slider(
+              min: 30,
+              max: 250,
+              value: _weightKg,
+              divisions: 440,
+              onChanged: (v) => setState(() => _weightKg = v),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _compactMeasurementRow({
+    required IconData icon,
+    required String label,
+    required String value,
+    required VoidCallback onMinus,
+    required VoidCallback onPlus,
+  }) {
+    final scheme = Theme.of(context).colorScheme;
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: _isDark ? 0.2 : 0.1),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: Icon(icon, size: 18, color: scheme.primary),
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Text(
+            label,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: onMinus,
+          icon: const Icon(Icons.remove_circle_outline),
+          iconSize: 24,
+        ),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: scheme.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Text(
+            value,
+            style: Theme.of(context).textTheme.titleSmall?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: onPlus,
+          icon: const Icon(Icons.add_circle_outline),
+          iconSize: 24,
+        ),
+      ],
+    );
+  }
+
+  Widget _trackerProfileCompact() {
+    final scheme = Theme.of(context).colorScheme;
+    return _InteractiveCard(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          children: [
+            Row(
               children: [
-                _stepChip('1. Profile', Icons.person_outline_rounded),
-                _stepChip('2. Height & Weight', Icons.straighten_rounded),
-                _stepChip('3. Daily Activity', Icons.directions_run_rounded),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: _isDark ? 0.2 : 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.badge, size: 18, color: scheme.primary),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    'Profile',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ),
               ],
+            ),
+            const SizedBox(height: 12),
+            SegmentedButton<Gender>(
+              segments: const [
+                ButtonSegment(value: Gender.male, icon: Icon(Icons.male), label: Text('Male')),
+                ButtonSegment(value: Gender.female, icon: Icon(Icons.female), label: Text('Female')),
+                ButtonSegment(value: Gender.other, icon: Icon(Icons.transgender), label: Text('Other')),
+              ],
+              selected: <Gender>{_gender},
+              onSelectionChanged: (value) => setState(() => _gender = value.first),
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: scheme.primary.withValues(alpha: _isDark ? 0.2 : 0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.cake, size: 18, color: scheme.primary),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Age: $_age',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const Spacer(),
+                IconButton(
+                  onPressed: () => setState(() => _age = max(1, _age - 1)),
+                  icon: const Icon(Icons.remove_circle_outline),
+                  iconSize: 20,
+                ),
+                IconButton(
+                  onPressed: () => setState(() => _age = min(100, _age + 1)),
+                  icon: const Icon(Icons.add_circle_outline),
+                  iconSize: 20,
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<ActivityLevel>(
+              initialValue: _activityLevel,
+              decoration: InputDecoration(
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                labelText: 'Activity Level',
+                isDense: true,
+                prefixIcon: Icon(Icons.directions_run, size: 18),
+              ),
+              items: const [
+                DropdownMenuItem(value: ActivityLevel.sedentary, child: Text('Sedentary')),
+                DropdownMenuItem(value: ActivityLevel.light, child: Text('Light (1-3x/week)')),
+                DropdownMenuItem(value: ActivityLevel.moderate, child: Text('Moderate (3-5x/week)')),
+                DropdownMenuItem(value: ActivityLevel.active, child: Text('Active (6-7x/week)')),
+                DropdownMenuItem(value: ActivityLevel.athlete, child: Text('Athlete')),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _activityLevel = value);
+              },
             ),
           ],
         ),
