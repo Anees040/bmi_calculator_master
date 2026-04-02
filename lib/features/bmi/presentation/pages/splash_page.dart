@@ -19,10 +19,13 @@ class SplashPage extends StatelessWidget {
         child: Center(
           child: TweenAnimationBuilder<double>(
             tween: Tween<double>(begin: 0.6, end: 1),
-            duration: const Duration(milliseconds: 1000),
+            duration: const Duration(milliseconds: 1200),
             curve: Curves.easeOutBack,
             builder: (context, value, child) {
-              return Transform.scale(scale: value, child: child);
+              return Opacity(
+                opacity: (value - 0.6) / 0.4,
+                child: Transform.scale(scale: value, child: child),
+              );
             },
             child: Column(
               mainAxisSize: MainAxisSize.min,

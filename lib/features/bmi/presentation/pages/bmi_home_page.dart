@@ -216,18 +216,18 @@ class _BmiHomePageState extends State<BmiHomePage>
         color: Theme.of(
           context,
         ).colorScheme.primary.withValues(alpha: _isDark ? 0.16 : 0.08),
+        width: 1.2,
       ),
-      boxShadow: _isDark
-          ? [
-              BoxShadow(
-                color: Theme.of(
-                  context,
-                ).colorScheme.primary.withValues(alpha: 0.12),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ]
-          : [],
+      boxShadow: [
+        BoxShadow(
+          color: Theme.of(
+            context,
+          ).colorScheme.primary.withValues(alpha: _isDark ? 0.16 : 0.08),
+          blurRadius: 20,
+          offset: const Offset(0, 6),
+          spreadRadius: 1,
+        ),
+      ],
     );
   }
 
@@ -635,18 +635,32 @@ class _BmiHomePageState extends State<BmiHomePage>
     required Color color,
     required VoidCallback onTap,
   }) {
-    return ActionChip(
-      avatar: Icon(icon, size: 18, color: color),
-      label: Text(title),
-      onPressed: () {
-        _tapFeedback();
-        onTap();
-      },
-      side: BorderSide(color: color.withValues(alpha: 0.24)),
-      backgroundColor: color.withValues(alpha: _isDark ? 0.24 : 0.10),
-      labelStyle: Theme.of(
-        context,
-      ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () {
+          _tapFeedback();
+          onTap();
+        },
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 18, color: color),
+              const SizedBox(width: 8),
+              Text(
+                title,
+                style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                  fontWeight: FontWeight.w700,
+                  color: color,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 
@@ -749,16 +763,22 @@ class _BmiHomePageState extends State<BmiHomePage>
             Row(
               children: [
                 Expanded(
-                  child: FilledButton.tonal(
+                  child: FilledButton(
                     onPressed: _saveRecord,
-                    child: const Text('Save'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Save Record'),
                   ),
                 ),
-                const SizedBox(width: 8),
+                const SizedBox(width: 10),
                 Expanded(
-                  child: OutlinedButton(
+                  child: FilledButton.tonal(
                     onPressed: _copySummary,
-                    child: const Text('Copy'),
+                    style: FilledButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                    ),
+                    child: const Text('Copy Summary'),
                   ),
                 ),
               ],
