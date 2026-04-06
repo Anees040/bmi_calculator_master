@@ -1,9 +1,24 @@
 import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
 import 'package:flutter/material.dart';
 
+/// Weekly BMI progress and analytics report page.
+/// 
+/// Displays comprehensive weekly statistics including:
+/// - Average BMI for the week
+/// - Weight trend analysis
+/// - Daily breakdown with timestamps
+/// - Actionable health insights
+/// 
+/// Data is calculated from the [history] list of BMI records
+/// covering the past 7 days.
 class WeeklyReportPage extends StatelessWidget {
+  /// Creates a [WeeklyReportPage] widget.
+  /// 
+  /// The [history] parameter must not be null and should contain
+  /// BMI records to be analyzed for the weekly report.
   const WeeklyReportPage({required this.history, super.key});
 
+  /// Full history of BMI records used to generate statistics
   final List<BmiRecord> history;
 
   @override
