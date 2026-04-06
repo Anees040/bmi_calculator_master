@@ -1,5 +1,13 @@
 import 'package:flutter/material.dart';
 
+/// Settings and Preferences page for BMI Calculator app.
+/// 
+/// Provides user interface for configuring:
+/// - Measurement units (height and weight)
+/// - Notification preferences and scheduling
+/// - App appearance and theme options
+/// 
+/// All preferences are persisted locally using SharedPreferences.
 class SettingsPage extends StatefulWidget {
   const SettingsPage({super.key});
 
@@ -7,11 +15,28 @@ class SettingsPage extends StatefulWidget {
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
+/// State class for [SettingsPage].
+/// 
+/// Manages user preferences for:
+/// - Height unit selection (cm, m, ft)
+/// - Weight unit selection (kg, lb)
+/// - Notification enable/disable toggle
+/// - Daily reminder scheduling
+/// - Theme and appearance settings
 class _SettingsPageState extends State<SettingsPage> {
+  /// Currently selected height measurement unit
   String _selectedHeightUnit = 'cm';
+  
+  /// Currently selected weight measurement unit
   String _selectedWeightUnit = 'kg';
+  
+  /// Whether notifications are enabled
   bool _enableNotifications = true;
+  
+  /// Whether daily reminder is active
   bool _dailyReminder = true;
+  
+  /// Hour of day for daily reminder (0-23)
   int _reminderHour = 9;
 
   @override
