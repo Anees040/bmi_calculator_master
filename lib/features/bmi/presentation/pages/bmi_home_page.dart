@@ -5,6 +5,8 @@ import 'package:bmi_calculator/features/bmi/data/local_store.dart';
 import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
 import 'package:bmi_calculator/features/bmi/domain/health_metrics.dart';
 import 'package:bmi_calculator/features/bmi/presentation/widgets/app_logo.dart';
+import 'package:bmi_calculator/features/bmi/presentation/pages/settings_page.dart';
+import 'package:bmi_calculator/features/bmi/presentation/pages/weekly_report_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
@@ -417,6 +419,30 @@ class _BmiHomePageState extends State<BmiHomePage>
                             ),
                           ],
                         ),
+                      ),
+                      IconButton(
+                        tooltip: 'Weekly Report',
+                        onPressed: () async {
+                          _tapFeedback();
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => WeeklyReportPage(history: _history),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.show_chart),
+                      ),
+                      IconButton(
+                        tooltip: 'Settings',
+                        onPressed: () async {
+                          _tapFeedback();
+                          await Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const SettingsPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.settings),
                       ),
                       IconButton(
                         onPressed: () {
