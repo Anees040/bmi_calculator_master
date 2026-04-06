@@ -1,18 +1,38 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+/// Singleton service for managing local notifications in the BMI app.
+/// 
+/// Provides methods for:
+/// - Initializing the notification system on app startup
+/// - Scheduling daily BMI reminder notifications
+/// - Scheduling weekly progress report notifications
+/// - Sending instant notifications to users
+/// 
+/// Implementation uses [FlutterLocalNotificationsPlugin] with support
+/// for both Android and iOS platforms. All scheduled notifications are
+/// timezone-aware and handle system timezone changes gracefully.
 class NotificationService {
+  /// Singleton instance of [NotificationService]
   static final NotificationService _instance = NotificationService._internal();
 
+  /// Factory constructor returning the singleton instance
   factory NotificationService() {
     return _instance;
   }
 
+  /// Private internal constructor
   NotificationService._internal();
 
+  /// Flutter Local Notifications plugin instance
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
 
+  /// Initialize notification system with platform-specific settings.
+  /// 
+  /// Must be called once during app initialization.
+  /// Sets up Android notification channels and iOS permissions.
+  /// Unsafe to call multiple times; the plugin handles repeated calls gracefully.
   Future<void> initializeNotifications() async {
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
@@ -34,6 +54,14 @@ class NotificationService {
     );
   }
 
+  /// Schedule a daily reminder notification at the specified time.
+  /// 
+  /// Parameters:
+  ///   - [hour]: Hour of day (0-23) when reminder should appear
+  ///   - [minute]: Minute of hour (0-59) when reminder should appear
+  /// 
+  /// The notification will repeat daily at the specified time.
+  /// Uses timezone-aware scheduling to handle timezone changes.
   Future<void> scheduleDailyReminder({
     required int hour,
     required int minute,
