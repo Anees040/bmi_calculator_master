@@ -7,6 +7,7 @@ class LocalStore {
   static const String _historyKey = 'bmi_history_v1';
   static const String _gameKey = 'bmi_game_state_v1';
   static const String _onboardingSeenKey = 'bmi_onboarding_seen_v1';
+  static const String _preferencesKey = 'bmi_preferences_v1';
 
   Future<List<BmiRecord>> loadHistory() async {
     final prefs = await SharedPreferences.getInstance();
@@ -51,5 +52,20 @@ class LocalStore {
   Future<void> saveOnboardingSeen(bool seen) async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_onboardingSeenKey, seen);
+  }
+
+  Future<AppPreferences> loadPreferences() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_preferencesKey);
+    if (raw == null || raw.isEmpty) {
+      return AppPreferences.defaults;
+    }
+    final map = jsonDecode(raw) as Map<String, dynamic>;
+    return AppPreferences.fromJson(map);
+  }
+
+  Future<void> savePreferences(AppPreferences preferences) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_preferencesKey, jsonEncode(preferences.toJson()));
   }
 }
