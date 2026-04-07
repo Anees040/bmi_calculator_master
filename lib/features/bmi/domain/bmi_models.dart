@@ -90,3 +90,65 @@ class GameState {
     lastCheckIn: '',
   );
 }
+
+class AppPreferences {
+  const AppPreferences({
+    required this.heightUnit,
+    required this.weightUnit,
+    required this.notificationsEnabled,
+    required this.dailyReminderEnabled,
+    required this.reminderHour,
+  });
+
+  final HeightUnit heightUnit;
+  final WeightUnit weightUnit;
+  final bool notificationsEnabled;
+  final bool dailyReminderEnabled;
+  final int reminderHour;
+
+  Map<String, dynamic> toJson() => {
+        'heightUnit': heightUnit.name,
+        'weightUnit': weightUnit.name,
+        'notificationsEnabled': notificationsEnabled,
+        'dailyReminderEnabled': dailyReminderEnabled,
+        'reminderHour': reminderHour,
+      };
+
+  factory AppPreferences.fromJson(Map<String, dynamic> json) {
+    return AppPreferences(
+      heightUnit: _heightUnitFromName(json['heightUnit'] as String?),
+      weightUnit: _weightUnitFromName(json['weightUnit'] as String?),
+      notificationsEnabled:
+          json['notificationsEnabled'] as bool? ?? AppPreferences.defaults.notificationsEnabled,
+      dailyReminderEnabled:
+          json['dailyReminderEnabled'] as bool? ?? AppPreferences.defaults.dailyReminderEnabled,
+      reminderHour: (json['reminderHour'] as num?)?.toInt() ?? AppPreferences.defaults.reminderHour,
+    );
+  }
+
+  static HeightUnit _heightUnitFromName(String? name) {
+    for (final value in HeightUnit.values) {
+      if (value.name == name) {
+        return value;
+      }
+    }
+    return AppPreferences.defaults.heightUnit;
+  }
+
+  static WeightUnit _weightUnitFromName(String? name) {
+    for (final value in WeightUnit.values) {
+      if (value.name == name) {
+        return value;
+      }
+    }
+    return AppPreferences.defaults.weightUnit;
+  }
+
+  static const defaults = AppPreferences(
+    heightUnit: HeightUnit.cm,
+    weightUnit: WeightUnit.kg,
+    notificationsEnabled: true,
+    dailyReminderEnabled: true,
+    reminderHour: 9,
+  );
+}
