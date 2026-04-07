@@ -75,6 +75,24 @@ BMI Smart Companion is a modernized evolution of traditional BMI calculators, de
 - Clipboard-ready health summaries for easy sharing
 - Background-safe state management
 
+### ⚡ **Smart Notifications** (April 2026)
+- Daily BMI reminder notifications at customizable times
+- Weekly progress report notifications
+- Cross-platform support (Android & iOS)
+- Timezone-aware scheduling with automatic adjustments
+
+### ⚙️ **Settings & Preferences** (April 2026)
+- Flexible measurement units (cm/m/ft for height, kg/lb for weight)
+- Notification configuration with time selection
+- Theme and appearance customization
+- Clean, Material3-designed settings interface
+
+### 📊 **Weekly Progress Reports** (April 2026)
+- 7-day averages for BMI and weight metrics
+- Daily breakdown table with timestamps
+- Weight change tracking and analysis
+- Actionable health insights based on trends
+
 ---
 
 ## 📸 Screenshots
