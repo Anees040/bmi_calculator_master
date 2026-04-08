@@ -12,9 +12,12 @@ void main() async {
 
   // Initialize notifications.
   await NotificationService().initializeNotifications();
+  final permissionsGranted = await NotificationService().requestPermissions();
 
   // Respect persisted reminder preferences on startup.
-  if (preferences.notificationsEnabled && preferences.dailyReminderEnabled) {
+  if (permissionsGranted &&
+      preferences.notificationsEnabled &&
+      preferences.dailyReminderEnabled) {
     await NotificationService().scheduleDailyReminder(
       hour: preferences.reminderHour,
       minute: 0,
