@@ -62,12 +62,9 @@ class AppInitializer {
 
       _isInitialized = true;
 
-      final logger = ServiceLocator().get<AppLogger>();
-      logger.info('App initialization completed', {
-        'flavor': config.flavor.toString(),
-        'logging': config.enableLogging,
-        'analytics': config.enableAnalytics,
-      });
+      AppLogger.info(
+        'App initialization completed (flavor: ${config.flavor}, logging: ${config.enableLogging}, analytics: ${config.enableAnalytics})',
+      );
     } catch (e) {
       throw AppInitializationException('Failed to initialize app: $e');
     }
@@ -100,8 +97,7 @@ class AppInitializer {
   }
 
   void _setupLogging() {
-    final logger = ServiceLocator().get<AppLogger>();
-    logger.info('Logging initialized', {});
+    AppLogger.info('Logging initialized');
   }
 
   void _setupAnalytics() {

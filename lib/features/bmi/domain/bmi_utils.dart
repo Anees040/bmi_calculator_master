@@ -1,8 +1,6 @@
 /// Utility functions for BMI calculation and formatting
 library bmi_utils;
 
-import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
-
 /// Format a BMI value with appropriate precision and color context
 extension BMIFormatting on double {
   /// Returns BMI formatted to 1 decimal place
