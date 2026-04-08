@@ -1,4 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
 /// Singleton service for managing local notifications in the BMI app.
@@ -27,6 +28,15 @@ class NotificationService {
   /// Flutter Local Notifications plugin instance
   final FlutterLocalNotificationsPlugin _notificationsPlugin =
       FlutterLocalNotificationsPlugin();
+  bool _timeZonesReady = false;
+
+  void _ensureTimeZonesInitialized() {
+    if (_timeZonesReady) {
+      return;
+    }
+    tz_data.initializeTimeZones();
+    _timeZonesReady = true;
+  }
 
   /// Initialize notification system with platform-specific settings.
   /// 
@@ -34,6 +44,7 @@ class NotificationService {
   /// Sets up Android notification channels and iOS permissions.
   /// Unsafe to call multiple times; the plugin handles repeated calls gracefully.
   Future<void> initializeNotifications() async {
+    _ensureTimeZonesInitialized();
     const AndroidInitializationSettings initializationSettingsAndroid =
         AndroidInitializationSettings('@mipmap/ic_launcher');
 
@@ -54,6 +65,36 @@ class NotificationService {
     );
   }
 
+  Future<bool> requestPermissions() async {
+    var androidGranted = true;
+    var darwinGranted = true;
+
+    final androidImplementation =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
+    if (androidImplementation != null) {
+      androidGranted =
+          await androidImplementation.requestNotificationsPermission() ?? true;
+    }
+
+    final darwinImplementation =
+        _notificationsPlugin.resolvePlatformSpecificImplementation<
+          DarwinFlutterLocalNotificationsPlugin
+        >();
+    if (darwinImplementation != null) {
+      darwinGranted =
+          await darwinImplementation.requestPermissions(
+            alert: true,
+            badge: true,
+            sound: true,
+          ) ??
+          true;
+    }
+
+    return androidGranted && darwinGranted;
+  }
+
   /// Schedule a daily reminder notification at the specified time.
   /// 
   /// Parameters:
@@ -66,6 +107,7 @@ class NotificationService {
     required int hour,
     required int minute,
   }) async {
+    _ensureTimeZonesInitialized();
     await _notificationsPlugin.zonedSchedule(
       0,
       'BMI Check-In',
@@ -94,6 +136,7 @@ class NotificationService {
   }
 
   Future<void> scheduleWeeklyReport({required int dayOfWeek}) async {
+    _ensureTimeZonesInitialized();
     await _notificationsPlugin.zonedSchedule(
       1,
       'Weekly Report Ready',
