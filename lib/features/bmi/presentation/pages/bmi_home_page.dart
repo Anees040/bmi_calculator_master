@@ -176,31 +176,11 @@ class _BmiHomePageState extends State<BmiHomePage>
   }
 
   void _setHeightUnit(HeightUnit unit) {
-    unawaited(
-      _onPreferencesChanged(
-        AppPreferences(
-          heightUnit: unit,
-          weightUnit: _preferences.weightUnit,
-          notificationsEnabled: _preferences.notificationsEnabled,
-          dailyReminderEnabled: _preferences.dailyReminderEnabled,
-          reminderHour: _preferences.reminderHour,
-        ),
-      ),
-    );
+    unawaited(_onPreferencesChanged(_preferences.copyWith(heightUnit: unit)));
   }
 
   void _setWeightUnit(WeightUnit unit) {
-    unawaited(
-      _onPreferencesChanged(
-        AppPreferences(
-          heightUnit: _preferences.heightUnit,
-          weightUnit: unit,
-          notificationsEnabled: _preferences.notificationsEnabled,
-          dailyReminderEnabled: _preferences.dailyReminderEnabled,
-          reminderHour: _preferences.reminderHour,
-        ),
-      ),
-    );
+    unawaited(_onPreferencesChanged(_preferences.copyWith(weightUnit: unit)));
   }
 
   Future<void> _onPreferencesChanged(AppPreferences preferences) async {
