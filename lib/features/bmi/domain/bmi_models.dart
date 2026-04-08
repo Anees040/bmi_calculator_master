@@ -106,6 +106,23 @@ class AppPreferences {
   final bool dailyReminderEnabled;
   final int reminderHour;
 
+  AppPreferences copyWith({
+    HeightUnit? heightUnit,
+    WeightUnit? weightUnit,
+    bool? notificationsEnabled,
+    bool? dailyReminderEnabled,
+    int? reminderHour,
+  }) {
+    return AppPreferences(
+      heightUnit: heightUnit ?? this.heightUnit,
+      weightUnit: weightUnit ?? this.weightUnit,
+      notificationsEnabled: notificationsEnabled ?? this.notificationsEnabled,
+      dailyReminderEnabled:
+          dailyReminderEnabled ?? this.dailyReminderEnabled,
+      reminderHour: (reminderHour ?? this.reminderHour).clamp(0, 23),
+    );
+  }
+
   Map<String, dynamic> toJson() => {
         'heightUnit': heightUnit.name,
         'weightUnit': weightUnit.name,
@@ -122,7 +139,9 @@ class AppPreferences {
           json['notificationsEnabled'] as bool? ?? AppPreferences.defaults.notificationsEnabled,
       dailyReminderEnabled:
           json['dailyReminderEnabled'] as bool? ?? AppPreferences.defaults.dailyReminderEnabled,
-      reminderHour: (json['reminderHour'] as num?)?.toInt() ?? AppPreferences.defaults.reminderHour,
+      reminderHour: ((json['reminderHour'] as num?)?.toInt() ??
+              AppPreferences.defaults.reminderHour)
+          .clamp(0, 23),
     );
   }
 
