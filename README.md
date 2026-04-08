@@ -113,6 +113,12 @@ BMI Smart Companion is a modernized evolution of traditional BMI calculators, de
 |:---:|:---:|
 | ![Dashboard Dark](screenshots/dashboard_dark.png) | ![Insights Dark](screenshots/insights_dark.png) |
 
+### **Weekly Reports & Settings**
+
+| Weekly Report | Settings & Preferences |
+|:---:|:---:|
+| ![Weekly Report](screenshots/weekly_report.png) | ![Settings](screenshots/settings.png) |
+
 ---
 
 ## 🛠️ Tech Stack
