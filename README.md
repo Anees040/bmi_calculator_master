@@ -294,8 +294,8 @@ This project is licensed under the **MIT License** - see the [LICENSE](LICENSE) 
 
 <div align="center">
 
-**Made with ❤️ by Anees Ahmad**
+**Made with ❤️ by Muhammad Anees**
 
-*Last Updated: March 31, 2026*
+*Last Updated: April 8, 2026*
 
 
