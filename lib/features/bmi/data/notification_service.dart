@@ -103,11 +103,15 @@ class NotificationService {
   /// 
   /// The notification will repeat daily at the specified time.
   /// Uses timezone-aware scheduling to handle timezone changes.
+  /// 
+  /// Throws if notification scheduling fails on the platform.
   Future<void> scheduleDailyReminder({
     required int hour,
     required int minute,
   }) async {
     _ensureTimeZonesInitialized();
+    assert(hour >= 0 && hour <= 23, 'Hour must be 0-23');
+    assert(minute >= 0 && minute <= 59, 'Minute must be 0-59');
     await _notificationsPlugin.zonedSchedule(
       0,
       'BMI Check-In',
