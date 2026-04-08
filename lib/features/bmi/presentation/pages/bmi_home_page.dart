@@ -2,6 +2,7 @@ import 'dart:math';
 import 'dart:async';
 
 import 'package:bmi_calculator/features/bmi/data/local_store.dart';
+import 'package:bmi_calculator/features/bmi/data/notification_service.dart';
 import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
 import 'package:bmi_calculator/features/bmi/domain/health_metrics.dart';
 import 'package:bmi_calculator/features/bmi/presentation/widgets/app_logo.dart';
@@ -41,6 +42,7 @@ class _BmiHomePageState extends State<BmiHomePage>
   HeightUnit _heightUnit = HeightUnit.cm;
   WeightUnit _weightUnit = WeightUnit.kg;
   ActivityLevel _activityLevel = ActivityLevel.moderate;
+  AppPreferences _preferences = AppPreferences.defaults;
 
   int _xp = 0;
   int _streak = 0;
@@ -93,6 +95,7 @@ class _BmiHomePageState extends State<BmiHomePage>
     final history = await _store.loadHistory();
     final game = await _store.loadGameState();
     final onboardingSeen = await _store.loadOnboardingSeen();
+    final preferences = await _store.loadPreferences();
     if (!mounted) {
       return;
     }
@@ -104,6 +107,9 @@ class _BmiHomePageState extends State<BmiHomePage>
       _stepsQuest = game.stepsQuest;
       _lastCheckIn = game.lastCheckIn;
       _showOnboarding = !onboardingSeen;
+      _preferences = preferences;
+      _heightUnit = preferences.heightUnit;
+      _weightUnit = preferences.weightUnit;
     });
     if (!onboardingSeen) {
       _startOnboardingTips();
@@ -169,9 +175,56 @@ class _BmiHomePageState extends State<BmiHomePage>
     return _store.saveHistory(_history);
   }
 
-  void _setHeightUnit(HeightUnit unit) => setState(() => _heightUnit = unit);
+  void _setHeightUnit(HeightUnit unit) {
+    unawaited(
+      _onPreferencesChanged(
+        AppPreferences(
+          heightUnit: unit,
+          weightUnit: _preferences.weightUnit,
+          notificationsEnabled: _preferences.notificationsEnabled,
+          dailyReminderEnabled: _preferences.dailyReminderEnabled,
+          reminderHour: _preferences.reminderHour,
+        ),
+      ),
+    );
+  }
 
-  void _setWeightUnit(WeightUnit unit) => setState(() => _weightUnit = unit);
+  void _setWeightUnit(WeightUnit unit) {
+    unawaited(
+      _onPreferencesChanged(
+        AppPreferences(
+          heightUnit: _preferences.heightUnit,
+          weightUnit: unit,
+          notificationsEnabled: _preferences.notificationsEnabled,
+          dailyReminderEnabled: _preferences.dailyReminderEnabled,
+          reminderHour: _preferences.reminderHour,
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onPreferencesChanged(AppPreferences preferences) async {
+    setState(() {
+      _preferences = preferences;
+      _heightUnit = preferences.heightUnit;
+      _weightUnit = preferences.weightUnit;
+    });
+    await _store.savePreferences(preferences);
+    await _syncReminderNotifications(preferences);
+  }
+
+  Future<void> _syncReminderNotifications(AppPreferences preferences) async {
+    if (!preferences.notificationsEnabled ||
+        !preferences.dailyReminderEnabled) {
+      await NotificationService().cancelNotification(0);
+      return;
+    }
+
+    await NotificationService().scheduleDailyReminder(
+      hour: preferences.reminderHour,
+      minute: 0,
+    );
+  }
 
   String get _heightDisplay {
     if (_heightUnit == HeightUnit.cm) {
@@ -438,7 +491,12 @@ class _BmiHomePageState extends State<BmiHomePage>
                           _tapFeedback();
                           await Navigator.of(context).push(
                             MaterialPageRoute(
-                              builder: (_) => const SettingsPage(),
+                              builder: (_) => SettingsPage(
+                                initialPreferences: _preferences,
+                                onPreferencesChanged: _onPreferencesChanged,
+                                onThemeToggle: widget.onToggleTheme,
+                                isDarkMode: widget.mode == ThemeMode.dark,
+                              ),
                             ),
                           );
                         },

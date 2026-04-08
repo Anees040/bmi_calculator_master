@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:bmi_calculator/features/bmi/domain/bmi_models.dart';
 
 /// Settings and Preferences page for BMI Calculator app.
 /// 
@@ -9,7 +10,18 @@ import 'package:flutter/material.dart';
 /// 
 /// All preferences are persisted locally using SharedPreferences.
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
+  const SettingsPage({
+    super.key,
+    required this.initialPreferences,
+    required this.onPreferencesChanged,
+    required this.onThemeToggle,
+    required this.isDarkMode,
+  });
+
+  final AppPreferences initialPreferences;
+  final ValueChanged<AppPreferences> onPreferencesChanged;
+  final VoidCallback onThemeToggle;
+  final bool isDarkMode;
 
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -25,19 +37,42 @@ class SettingsPage extends StatefulWidget {
 /// - Theme and appearance settings
 class _SettingsPageState extends State<SettingsPage> {
   /// Currently selected height measurement unit
-  String _selectedHeightUnit = 'cm';
+  late HeightUnit _selectedHeightUnit;
   
   /// Currently selected weight measurement unit
-  String _selectedWeightUnit = 'kg';
+  late WeightUnit _selectedWeightUnit;
   
   /// Whether notifications are enabled
-  bool _enableNotifications = true;
+  late bool _enableNotifications;
   
   /// Whether daily reminder is active
-  bool _dailyReminder = true;
+  late bool _dailyReminder;
   
   /// Hour of day for daily reminder (0-23)
-  int _reminderHour = 9;
+  late int _reminderHour;
+
+  @override
+  void initState() {
+    super.initState();
+    final prefs = widget.initialPreferences;
+    _selectedHeightUnit = prefs.heightUnit;
+    _selectedWeightUnit = prefs.weightUnit;
+    _enableNotifications = prefs.notificationsEnabled;
+    _dailyReminder = prefs.dailyReminderEnabled;
+    _reminderHour = prefs.reminderHour;
+  }
+
+  void _emitPreferences() {
+    widget.onPreferencesChanged(
+      AppPreferences(
+        heightUnit: _selectedHeightUnit,
+        weightUnit: _selectedWeightUnit,
+        notificationsEnabled: _enableNotifications,
+        dailyReminderEnabled: _dailyReminder,
+        reminderHour: _reminderHour,
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -56,15 +91,16 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingCard(
             title: 'Height Unit',
             subtitle: 'Choose your preferred height measurement',
-            child: SegmentedButton<String>(
+            child: SegmentedButton<HeightUnit>(
               segments: const [
-                ButtonSegment(value: 'cm', label: Text('Centimeter')),
-                ButtonSegment(value: 'm', label: Text('Meter')),
-                ButtonSegment(value: 'ft', label: Text('Feet')),
+                ButtonSegment(value: HeightUnit.cm, label: Text('Centimeter')),
+                ButtonSegment(value: HeightUnit.meter, label: Text('Meter')),
+                ButtonSegment(value: HeightUnit.ftIn, label: Text('Feet')),
               ],
               selected: {_selectedHeightUnit},
-              onSelectionChanged: (Set<String> newSelection) {
+              onSelectionChanged: (Set<HeightUnit> newSelection) {
                 setState(() => _selectedHeightUnit = newSelection.first);
+                _emitPreferences();
               },
             ),
           ),
@@ -72,14 +108,15 @@ class _SettingsPageState extends State<SettingsPage> {
           _SettingCard(
             title: 'Weight Unit',
             subtitle: 'Choose your preferred weight measurement',
-            child: SegmentedButton<String>(
+            child: SegmentedButton<WeightUnit>(
               segments: const [
-                ButtonSegment(value: 'kg', label: Text('Kilogram')),
-                ButtonSegment(value: 'lb', label: Text('Pound')),
+                ButtonSegment(value: WeightUnit.kg, label: Text('Kilogram')),
+                ButtonSegment(value: WeightUnit.lb, label: Text('Pound')),
               ],
               selected: {_selectedWeightUnit},
-              onSelectionChanged: (Set<String> newSelection) {
+              onSelectionChanged: (Set<WeightUnit> newSelection) {
                 setState(() => _selectedWeightUnit = newSelection.first);
+                _emitPreferences();
               },
             ),
           ),
@@ -91,7 +128,10 @@ class _SettingsPageState extends State<SettingsPage> {
             title: 'Enable Notifications',
             subtitle: 'Receive app notifications and reminders',
             value: _enableNotifications,
-            onChanged: (value) => setState(() => _enableNotifications = value),
+            onChanged: (value) {
+              setState(() => _enableNotifications = value);
+              _emitPreferences();
+            },
           ),
           const SizedBox(height: 12),
           if (_enableNotifications)
@@ -99,7 +139,10 @@ class _SettingsPageState extends State<SettingsPage> {
               title: 'Daily Reminder',
               subtitle: 'Get daily reminder to log your BMI',
               value: _dailyReminder,
-              onChanged: (value) => setState(() => _dailyReminder = value),
+              onChanged: (value) {
+                setState(() => _dailyReminder = value);
+                _emitPreferences();
+              },
             ),
           if (_enableNotifications && _dailyReminder) ...[
             const SizedBox(height: 12),
@@ -114,6 +157,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 label: '${_reminderHour.toString().padLeft(2, '0')}:00',
                 onChanged: (value) {
                   setState(() => _reminderHour = value.toInt());
+                  _emitPreferences();
                 },
               ),
             ),
@@ -125,8 +169,8 @@ class _SettingsPageState extends State<SettingsPage> {
           _SwitchTile(
             title: 'Dark Mode',
             subtitle: 'Use dark theme for better visibility',
-            value: Theme.of(context).brightness == Brightness.dark,
-            onChanged: (_) {},
+            value: widget.isDarkMode,
+            onChanged: (_) => widget.onThemeToggle(),
           ),
           const SizedBox(height: 24),
           // About Section
