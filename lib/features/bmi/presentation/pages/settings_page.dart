@@ -233,7 +233,9 @@ class _SettingCard extends StatelessWidget {
     final scheme = Theme.of(context).colorScheme;
 
     return Card(
-      color: scheme.surfaceContainerHighest.withValues(alpha: isDark ? 0.3 : 0.5),
+      elevation: 0,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: scheme.surfaceContainerHighest.withValues(alpha: isDark ? 0.25 : 0.4),
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
